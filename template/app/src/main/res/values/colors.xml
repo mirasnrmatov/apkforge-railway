@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BACKEND АЛМАСТЫРАДЫ (мыс. #3DD4C8) -->
+    <color name="theme_color">__THEME_COLOR__</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>

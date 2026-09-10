@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APKForge — кодтан қосымшаға</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0C11;
+    --bg-2:#0E1118;
+    --surface:#14171F;
+    --surface-2:#1A1E28;
+    --glass:rgba(255,255,255,.025);
+    --border:rgba(255,255,255,.07);
+    --border-2:rgba(255,255,255,.12);
+    --text:#F2F4F7;
+    --muted:#9AA1B0;
+    --faint:#5A6070;
+    --accent:#3DD4C8;
+    --accent-2:#5EEAD4;
+    --violet:#8B7CF6;
+    --amber:#FBBF6B;
+    --ok:#5DD68A;
+    --danger:#F27878;
+    --grad:linear-gradient(135deg,#3DD4C8 0%,#5EEAD4 40%,#8B7CF6 100%);
+    --radius:16px;
+    --radius-sm:11px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  }
+  /* фон: нүкте торы + екі шам */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:radial-gradient(rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size:32px 32px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+    -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(600px circle at 12% -5%, rgba(61,212,200,.14), transparent 45%),
+      radial-gradient(700px circle at 92% 8%, rgba(139,124,246,.12), transparent 45%);
+  }
+
+  /* header */
+  header{
+    position:sticky;top:0;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 32px;
+    background:rgba(10,12,17,.7);backdrop-filter:blur(16px) saturate(140%);
+    border-bottom:1px solid var(--border);
+  }
+  .logo{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk';font-weight:700;font-size:19px;letter-spacing:-.02em}
+  .logo .mark{
+    width:34px;height:34px;border-radius:10px;background:var(--grad);
+    display:grid;place-items:center;color:#07090d;font-weight:700;font-size:17px;
+    box-shadow:0 0 0 1px rgba(94,234,212,.3), 0 8px 20px rgba(61,212,200,.25);
+    position:relative;overflow:hidden;
+  }
+  .logo .mark::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,.4) 50%,transparent 70%);transform:translateX(-100%);animation:shine 4s ease-in-out infinite}
+  @keyframes shine{0%,60%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}
+  .nav{display:flex;gap:4px;align-items:center}
+  .nav a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;padding:8px 14px;border-radius:9px;transition:.15s}
+  .nav a:hover{color:var(--text);background:var(--glass)}
+  .nav .cta{background:var(--text);color:#0A0C11;font-weight:600;margin-left:6px}
+  .nav .cta:hover{background:#fff;color:#0A0C11}
+
+  .wrap{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:72px 32px 90px}
+
+  /* hero */
+  .hero{text-align:center;margin-bottom:52px;animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;
+    color:var(--accent-2);background:rgba(61,212,200,.08);
+    border:1px solid rgba(61,212,200,.22);padding:6px 15px;border-radius:100px;margin-bottom:26px;
+  }
+  .badge .live{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  h1{
+    font-family:'Space Grotesk';font-weight:700;letter-spacing:-.035em;
+    font-size:clamp(38px,7vw,68px);line-height:1.02;margin-bottom:20px;
+  }
+  h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{color:var(--muted);font-size:clamp(16px,2.2vw,19px);max-width:56ch;margin:0 auto;line-height:1.6}
+  .sub code{font-family:'JetBrains Mono';font-size:.9em;color:var(--accent-2);background:rgba(61,212,200,.1);padding:2px 7px;border-radius:6px}
+
+  /* platform picker */
+  .platforms{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:34px}
+  @media(max-width:720px){.platforms{grid-template-columns:1fr}}
+  .plat{
+    position:relative;cursor:pointer;overflow:hidden;
+    background:var(--surface);border:1.5px solid var(--border);
+    border-radius:var(--radius);padding:22px;transition:.22s cubic-bezier(.2,.7,.2,1);
+  }
+  .plat::before{
+    content:"";position:absolute;inset:0;opacity:0;transition:.22s;
+    background:radial-gradient(400px circle at var(--mx,50%) var(--my,0%), rgba(61,212,200,.1), transparent 60%);
+  }
+  .plat:hover{border-color:var(--border-2);transform:translateY(-3px);box-shadow:0 16px 40px -12px rgba(0,0,0,.6)}
+  .plat:hover::before{opacity:1}
+  .plat.active{border-color:transparent;background:linear-gradient(var(--surface),var(--surface)) padding-box,var(--grad) border-box;box-shadow:0 0 30px -8px rgba(61,212,200,.4)}
+  .plat.active .check{opacity:1;transform:scale(1)}
+  .plat .check{
+    position:absolute;top:16px;right:16px;opacity:0;transform:scale(.5);transition:.22s;
+    width:22px;height:22px;border-radius:50%;background:var(--grad);
+    display:grid;place-items:center;color:#07090d;font-size:12px;font-weight:800;
+  }
+  .plat .p-ico{
+    width:52px;height:52px;border-radius:13px;margin-bottom:16px;position:relative;
+    background:var(--surface-2);border:1px solid var(--border);
+    display:grid;place-items:center;
+  }
+  .plat .p-ico svg{width:28px;height:28px}
+  .plat .p-name{font-family:'Space Grotesk';font-weight:600;font-size:17px;margin-bottom:5px}
+  .plat .p-out{display:inline-block;font-family:'JetBrains Mono';font-size:11.5px;color:var(--accent-2);background:rgba(61,212,200,.1);padding:2px 8px;border-radius:6px;margin-bottom:9px}
+  .plat .p-desc{font-size:13px;color:var(--muted)}
+
+  /* workspace */
+  .workspace{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  @media(max-width:720px){.workspace{grid-template-columns:1fr}}
+  .panel{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:24px;position:relative;
+  }
+  .panel-title{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk';font-weight:600;font-size:15px;margin-bottom:18px;color:var(--muted)}
+  .panel-title .n{width:24px;height:24px;border-radius:7px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;font-size:12px;color:var(--accent-2);font-family:'JetBrains Mono'}
+
+  /* dropzone */
+  .dropzone{
+    position:relative;border:1.5px dashed var(--border-2);border-radius:var(--radius-sm);
+    padding:44px 22px;text-align:center;cursor:pointer;transition:.22s;
+    background:var(--surface-2);overflow:hidden;
+  }
+  .dropzone::before{content:"";position:absolute;inset:0;background:var(--grad);opacity:0;transition:.22s}
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent)}
+  .dropzone:hover::before,.dropzone.drag::before{opacity:.05}
+  .dz-in{position:relative;z-index:1}
+  .dropzone .icon{
+    width:60px;height:60px;margin:0 auto 16px;border-radius:15px;
+    background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;
+    box-shadow:0 8px 24px -8px rgba(0,0,0,.5);transition:.22s;
+  }
+  .dropzone:hover .icon,.dropzone.drag .icon{transform:translateY(-3px)}
+  .dropzone svg{width:28px;height:28px;stroke:var(--accent);fill:none;stroke-width:1.7}
+  .dropzone .big{font-weight:600;font-size:15px;margin-bottom:5px}
+  .dropzone .small{color:var(--muted);font-size:13px}
+  .dropzone .small code{font-family:'JetBrains Mono';font-size:12px;color:var(--amber);background:rgba(251,191,107,.1);padding:2px 6px;border-radius:5px}
+  .file-chip{display:none;align-items:center;gap:12px;margin-top:16px;background:var(--surface-2);border:1px solid var(--border);padding:12px 15px;border-radius:var(--radius-sm)}
+  .file-chip.show{display:flex;animation:rise .3s both}
+  .file-chip .fi{width:36px;height:36px;border-radius:8px;background:var(--grad);display:grid;place-items:center;color:#07090d;font-size:11px;font-family:'JetBrains Mono';font-weight:700}
+  .file-chip .meta{flex:1;min-width:0}
+  .file-chip .meta .name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-chip .meta .size{color:var(--muted);font-size:12px}
+  .file-chip .x{color:var(--faint);cursor:pointer;font-size:22px;line-height:1;padding:2px 7px;border-radius:7px;transition:.15s}
+  .file-chip .x:hover{color:var(--danger);background:rgba(242,120,120,.12)}
+
+  /* fields */
+  .field{margin-bottom:18px}
+  .field:last-child{margin-bottom:0}
+  label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:8px}
+  label .hint{color:var(--faint);font-weight:400}
+  input[type=text]{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-size:14px;font-family:'Inter';transition:.15s}
+  input.mono{font-family:'JetBrains Mono';font-size:13px}
+  input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(61,212,200,.14)}
+  input::placeholder{color:var(--faint)}
+  .icon-color-row{display:flex;gap:12px}
+  .icon-upload{flex:1;display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 13px;cursor:pointer;transition:.15s}
+  .icon-upload:hover{border-color:var(--border-2)}
+  .icon-upload .box{width:40px;height:40px;border-radius:9px;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;color:var(--muted);font-size:19px}
+  .icon-upload .t .a{font-weight:600;font-size:13px}
+  .icon-upload .t .b{color:var(--muted);font-size:12px}
+  .color-pick{display:flex;align-items:center}
+  .swatches{display:flex;gap:8px}
+  .sw{width:28px;height:28px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:.15s;position:relative}
+  .sw.active{border-color:var(--text);transform:scale(1.1)}
+
+  /* build */
+  .build-bar{margin:26px 0 18px}
+  .btn-build{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:11px;position:relative;overflow:hidden;
+    background:var(--grad);color:#07090d;font-weight:700;font-size:16px;font-family:'Space Grotesk';
+    border:none;border-radius:var(--radius);padding:17px;cursor:pointer;transition:.2s;
+    box-shadow:0 10px 30px -8px rgba(61,212,200,.45);
+  }
+  .btn-build::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);transition:.5s}
+  .btn-build:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 16px 40px -8px rgba(61,212,200,.55)}
+  .btn-build:hover:not(:disabled)::after{transform:translateX(120%)}
+  .btn-build:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+  .btn-build svg{width:20px;height:20px;stroke:#07090d;fill:none;stroke-width:2.2;position:relative;z-index:1}
+  .btn-build span{position:relative;z-index:1}
+
+  /* console */
+  .console{background:#080A0E;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+  .console-head{display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid var(--border);background:var(--surface)}
+  .console-head .lights{display:flex;gap:7px}
+  .console-head .lights i{width:12px;height:12px;border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#FF5F57}.lights i:nth-child(2){background:#FEBC2E}.lights i:nth-child(3){background:#28C840}
+  .console-head .title{font-family:'JetBrains Mono';font-size:12.5px;color:var(--muted);margin-left:8px}
+  .console-head .status{margin-left:auto;font-family:'JetBrains Mono';font-size:12px;color:var(--faint);display:flex;align-items:center;gap:6px}
+  .console-head .status .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .console-body{padding:18px;font-family:'JetBrains Mono';font-size:13px;line-height:2;min-height:170px;max-height:280px;overflow-y:auto}
+  .console-body::-webkit-scrollbar{width:8px}.console-body::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:4px}
+  .console-body .empty{color:var(--faint)}
+  .log-line{opacity:0;animation:fadein .3s forwards}
+  @keyframes fadein{to{opacity:1}}
+  .log-line .t{color:var(--faint);margin-right:12px}
+  .c-accent{color:var(--accent-2)}.c-amber{color:var(--amber)}.c-ok{color:var(--ok)}.c-muted{color:var(--muted)}
+
+  /* result */
+  .result{display:none;margin-top:16px;background:linear-gradient(135deg,rgba(61,212,200,.1),rgba(139,124,246,.06));border:1px solid rgba(61,212,200,.3);border-radius:var(--radius);padding:22px;align-items:center;gap:18px}
+  .result.show{display:flex;animation:rise .4s both}
+  .result .badge2{width:50px;height:50px;border-radius:14px;background:var(--grad);display:grid;place-items:center;color:#07090d;font-size:24px;font-weight:800;flex-shrink:0;box-shadow:0 8px 24px -6px rgba(61,212,200,.5)}
+  .result .info{flex:1;min-width:0}
+  .result .info .h{font-family:'Space Grotesk';font-weight:600;font-size:17px}
+  .result .info .s{color:var(--muted);font-size:13px;font-family:'JetBrains Mono';margin-top:3px}
+  .btn-dl{background:var(--text);border:none;color:#0A0C11;font-weight:600;font-size:14px;padding:12px 22px;border-radius:var(--radius-sm);cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn-dl:hover{background:#fff;transform:translateY(-1px)}
+
+  footer{position:relative;z-index:1;text-align:center;color:var(--faint);font-size:13px;padding:34px;border-top:1px solid var(--border)}
+  @media(max-width:560px){.wrap{padding:48px 18px 64px}header{padding:15px 18px}.nav a:not(.cta){display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="mark">◆</span> APKForge</div>
+  <nav class="nav">
+    <a href="#">Құжаттама</a>
+    <a href="#">Мысалдар</a>
+    <a href="#" class="cta">Бастау</a>
+  </nav>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <span class="badge"><span class="live"></span> Тіркелусіз · толықтай тегін</span>
+  </section>
+
+  <!-- platforms -->
+  <div class="platforms" id="platforms">
+    <div class="plat active" data-p="android">
+      <span class="check">✓</span>
+      <div class="p-ico"><svg viewBox="0 0 24 24" fill="#3DD4C8"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.637.637 0 00-.83.22l-1.88 3.24a11.43 11.43 0 00-8.94 0L5.65 5.67a.643.643 0 00-.87-.2c-.28.18-.37.54-.22.83L6.4 9.48A10.78 10.78 0 001 18h22a10.78 10.78 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/></svg></div>
+      <div class="p-name">Android</div>
+      <span class="p-out">.apk</span>
+      <div class="p-desc">Телефон, планшет</div>
+    </div>
+    <div class="plat" data-p="desktop">
+      <span class="check">✓</span>
+      <div class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#3DD4C8" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+      <div class="p-name">Desktop</div>
+      <span class="p-out">.exe · .dmg</span>
+      <div class="p-desc">Windows, macOS, Linux</div>
+    </div>
+    <div class="plat" data-p="python">
+      <span class="check">✓</span>
+      <div class="p-ico"><svg viewBox="0 0 24 24" fill="#3DD4C8"><path d="M11.9 2c-1 0-2 .1-2.8.3-2.5.4-2.9 1.4-2.9 3.1v2.2h5.8v.7H4.2c-1.7 0-3.2 1-3.7 3-.5 2.2-.5 3.6 0 5.9.4 1.7 1.4 2.9 3.1 2.9h2v-2.6c0-1.9 1.7-3.6 3.6-3.6h5.8c1.6 0 2.9-1.3 2.9-2.9V5.4c0-1.6-1.3-2.7-2.9-3C14.1 2.1 12.9 2 11.9 2zM8.8 3.8c.6 0 1.1.5 1.1 1.1s-.5 1.1-1.1 1.1-1.1-.5-1.1-1.1.5-1.1 1.1-1.1z"/><path d="M19.5 8.2v2.5c0 2-1.7 3.7-3.6 3.7H10c-1.5 0-2.9 1.3-2.9 2.9v5.4c0 1.6 1.3 2.5 2.9 3 1.8.5 3.6.6 5.8 0 1.5-.4 2.9-1.3 2.9-3v-2.2h-5.8v-.7h8.7c1.7 0 2.3-1.2 2.9-2.9.6-1.8.6-3.5 0-5.9-.4-1.7-1.2-2.9-2.9-2.9h-2zm-3.3 12.3c.6 0 1.1.5 1.1 1.1s-.5 1.1-1.1 1.1-1.1-.5-1.1-1.1.5-1.1 1.1-1.1z"/></svg></div>
+      <div class="p-name">Python</div>
+      <span class="p-out">.exe</span>
+      <div class="p-desc">Скриптті бағдарламаға</div>
+    </div>
+  </div>
+
+  <!-- workspace -->
+  <div class="workspace">
+    <div class="panel">
+      <div class="panel-title"><span class="n">01</span> Кодты жүкте</div>
+      <div class="dropzone" id="drop">
+        <div class="dz-in">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg></div>
+          <div class="big">Файлды осында тастаңыз</div>
+          <div class="small">немесе басып таңдаңыз</div>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept=".zip" hidden>
+      <div class="file-chip" id="chip">
+        <span class="fi">ZIP</span>
+        <div class="meta"><div class="name" id="fname">app.zip</div><div class="size" id="fsize">—</div></div>
+        <span class="x" id="removeFile">×</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span class="n">02</span> Баптау</div>
+      <div class="field">
+        <label>Қосымша аты</label>
+        <input type="text" id="appName" placeholder="Менің Қосымшам">
+      </div>
+      <div class="field">
+        <label id="pkgLabel">Package ID <span class="hint">(бірегей болуы керек)</span></label>
+        <input type="text" class="mono" id="pkg" placeholder="com.mysite.app">
+      </div>
+      <div class="field">
+        <label>Иконка және түс</label>
+        <div class="icon-color-row">
+          <div class="icon-upload" id="iconUp">
+            <div class="box">+</div>
+            <div class="t"><div class="a">Иконка</div><div class="b">512×512 PNG</div></div>
+          </div>
+          <div class="color-pick">
+            <div class="swatches">
+              <span class="sw active" data-c="#3DD4C8" style="background:#3DD4C8"></span>
+              <span class="sw" data-c="#8B7CF6" style="background:#8B7CF6"></span>
+              <span class="sw" data-c="#FBBF6B" style="background:#FBBF6B"></span>
+              <span class="sw" data-c="#F27878" style="background:#F27878"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="build-bar">
+    <button class="btn-build" id="buildBtn" disabled>
+      <svg viewBox="0 0 24 24"><path d="M13 3l8 8-9 9H4v-8l9-9z"/><path d="M14 2l6 6"/></svg>
+      <span>APK құрастыру</span>
+    </button>
+  </div>
+
+  <div class="console">
+    <div class="console-head">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <span class="title">build — output</span>
+      <span class="status" id="cStatus"><span class="d"></span>idle</span>
+    </div>
+    <div class="console-body" id="console"><span class="empty">$ build журналы осында ағып шығады...</span></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="badge2">✓</div>
+    <div class="info"><div class="h">Қосымша дайын!</div><div class="s" id="resName">app-release.apk · 3.2 MB</div></div>
+    <button class="btn-dl">Жүктеп алу</button>
+  </div>
+
+</div>
+
+<footer>APKForge — демо интерфейс · build логикасы келесі кезеңде қосылады</footer>
+
+<script>
+  const drop=document.getElementById('drop');
+  const fileInput=document.getElementById('fileInput');
+  const chip=document.getElementById('chip');
+  const buildBtn=document.getElementById('buildBtn');
+  const btnText=buildBtn.querySelector('span');
+  const pkgInput=document.getElementById('pkg');
+  const pkgLabel=document.getElementById('pkgLabel');
+  let hasFile=false;
+
+  const PLATFORMS={
+    android:{accept:'.zip',fileHint:'ZIP',btn:'APK құрастыру',
+      pkgLabel:'Package ID <span class="hint">(бірегей болуы керек)</span>',pkgPh:'com.mysite.app',
+      result:'app-release.apk · 3.2 MB',
+      steps:[['00:00','ZIP файл ашылуда...','c-muted'],['00:01','index.html табылды ✓','c-ok'],['00:02','WebView шаблоны дайындалуда','c-accent'],['00:05','gradle assembleRelease орындалуда...','c-amber'],['00:14','APK қол қойылды (signed) ✓','c-ok'],['00:15','BUILD SUCCESSFUL — app-release.apk','c-ok']]},
+    desktop:{accept:'.zip',fileHint:'ZIP',btn:'Бағдарлама құрастыру',
+      pkgLabel:'App ID',pkgPh:'com.mysite.app',
+      result:'app-setup.exe · 58 MB',
+      steps:[['00:00','ZIP файл ашылуда...','c-muted'],['00:01','index.html табылды ✓','c-ok'],['00:02','Electron қабығы дайындалуда','c-accent'],['00:06','electron-builder орындалуда...','c-amber'],['00:24','Windows/Mac/Linux нұсқалары жиналды ✓','c-ok'],['00:25','BUILD SUCCESSFUL — app-setup.exe','c-ok']]},
+    python:{accept:'.py,.zip',fileHint:'PY',btn:'.exe құрастыру',
+      pkgLabel:'Негізгі скрипт <span class="hint">(entry point)</span>',pkgPh:'main.py',
+      result:'main.exe · 12 MB',
+      steps:[['00:00','Скрипт оқылуда...','c-muted'],['00:01','main.py табылды ✓','c-ok'],['00:02','тәуелділіктер талданды','c-accent'],['00:04','pyinstaller --onefile орындалуда...','c-amber'],['00:16','бір файлдық .exe жиналды ✓','c-ok'],['00:17','BUILD SUCCESSFUL — main.exe','c-ok']]},
+  };
+  let platform='android';
+
+  document.querySelectorAll('.plat').forEach(p=>{
+    p.addEventListener('mousemove',e=>{const r=p.getBoundingClientRect();p.style.setProperty('--mx',(e.clientX-r.left)+'px');p.style.setProperty('--my',(e.clientY-r.top)+'px')});
+    p.addEventListener('click',()=>{document.querySelectorAll('.plat').forEach(x=>x.classList.remove('active'));p.classList.add('active');platform=p.dataset.p;applyPlatform()});
+  });
+  function applyPlatform(){
+    const c=PLATFORMS[platform];
+    fileInput.setAttribute('accept',c.accept);
+    chip.querySelector('.fi').textContent=c.fileHint;
+    btnText.textContent=c.btn;
+    pkgLabel.innerHTML=c.pkgLabel;
+    pkgInput.placeholder=c.pkgPh;
+    document.getElementById('resName').textContent=c.result;
+  }
+  applyPlatform();
+
+  drop.addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',e=>{if(e.target.files[0])setFile(e.target.files[0])});
+  ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));
+  drop.addEventListener('drop',e=>{if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
+  function setFile(f){document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=(f.size/1024/1024).toFixed(2)+' MB';chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
+  document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';hasFile=false;buildBtn.disabled=true});
+
+  document.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',()=>{document.querySelectorAll('.sw').forEach(s=>s.classList.remove('active'));sw.classList.add('active')}));
+  document.getElementById('iconUp').addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/png';inp.click();inp.onchange=()=>{if(inp.files[0])document.querySelector('#iconUp .a').textContent=inp.files[0].name.slice(0,14)}});
+
+  const con=document.getElementById('console');
+  const st=document.getElementById('cStatus');
+  const result=document.getElementById('result');
+  const dlBtn=document.querySelector('.btn-dl');
+  let downloadUrl='';
+
+  function logLine(msg,cls){
+    const line=document.createElement('div');line.className='log-line';
+    const t=new Date().toLocaleTimeString('kk',{hour12:false}).slice(0,5);
+    line.innerHTML='<span class="t">'+t+'</span><span class="'+(cls||'c-muted')+'">'+msg+'</span>';
+    con.appendChild(line);con.scrollTop=con.scrollHeight;
+  }
+  function setStatus(txt,color){st.innerHTML='<span class="d"></span>'+txt;st.style.color=color}
+
+  dlBtn.addEventListener('click',()=>{ if(downloadUrl) window.location.href=downloadUrl });
+
+  buildBtn.addEventListener('click',async()=>{
+    if(!hasFile)return;
+
+    // Android — нақты build; басқасы әзірге демо
+    if(platform!=='android'){
+      con.innerHTML='';setStatus('running','var(--amber)');
+      const steps=PLATFORMS[platform].steps;let i=0;
+      (function next(){
+        if(i>=steps.length){setStatus('done','var(--ok)');
+          logLine('⚠ бұл платформа әзірге демо режимінде','c-amber');buildBtn.disabled=false;return}
+        logLine(steps[i][1],steps[i][2]);i++;setTimeout(next,500+Math.random()*400);
+      })();
+      return;
+    }
+
+    buildBtn.disabled=true;
+    result.classList.remove('show');
+    con.innerHTML='';
+    setStatus('running','var(--amber)');
+
+    // деректерді жинау
+    const fd=new FormData();
+    fd.append('zip',fileInput.files[0]);
+    fd.append('appName',document.getElementById('appName').value||'MyApp');
+    fd.append('pkg',pkgInput.value||'com.apkforge.app');
+    fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
+
+    // күту кезінде "тірі" сезім беретін аралық лог
+    logLine('Сервермен байланысу...','c-muted');
+    const waitMsgs=['Файлдар серверге жүктелуде...','Шаблон дайындалуда...','gradle assembleRelease орындалуда... (бірінші рет ұзағырақ)'];
+    let w=0;const waiter=setInterval(()=>{ if(w<waitMsgs.length){logLine(waitMsgs[w],'c-accent');w++} },2500);
+
+    try{
+      const r=await fetch('/api/build',{method:'POST',body:fd});
+      const data=await r.json();
+      clearInterval(waiter);
+
+      if(data.ok){
+        (data.log||[]).forEach(m=>logLine(m,'c-muted'));
+        logLine('BUILD SUCCESSFUL — APK дайын ✓','c-ok');
+        setStatus('done','var(--ok)');
+        downloadUrl=data.download;
+        document.getElementById('resName').textContent='app-release.apk · '+data.size;
+        result.classList.add('show');
+      }else{
+        (data.log||[]).forEach(m=>logLine(m,'c-muted'));
+        logLine('✗ ҚАТЕ: '+data.error,'c-amber');
+        setStatus('error','var(--danger)');
+      }
+    }catch(e){
+      clearInterval(waiter);
+      logLine('✗ Сервермен байланыс үзілді: '+e.message,'c-amber');
+      setStatus('error','var(--danger)');
+    }
+    buildBtn.disabled=false;
+  });
+</script>
+</body>
+</html>
