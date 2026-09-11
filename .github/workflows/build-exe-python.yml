@@ -1,0 +1,126 @@
+# APKForge — Python скриптінен Windows .exe (PyInstaller --onefile).
+# Railway сервері бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
+# сосын run-ды run-name ішіндегі job_id бойынша тауып, күйін бақылайды.
+# Жалғыз .py файлды сервер өзі ZIP-ке орап жібереді, сондықтан мұнда әрқашан ZIP келеді.
+# Қадам атауларын өзгертсеңіз, server.js ішіндегі STEP_HINTS-ті де жаңартыңыз.
+
+name: Build EXE (Python)
+
+run-name: "EXE build ${{ inputs.job_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "APKForge job ID (серверден келеді, мыс. job_1789131361951_a1b2c3_py)"
+        required: true
+        type: string
+      zip_url:
+        description: "Python жобасы ZIP файлының public URL-і"
+        required: true
+        type: string
+      app_name:
+        description: ".exe атауы (кеңейтусіз)"
+        required: true
+        default: "MyApp"
+        type: string
+      entry_point:
+        description: "Негізгі скрипт ZIP ішіндегі жолымен (мыс. main.py)"
+        required: true
+        default: "main.py"
+        type: string
+
+# Пайдаланушы коды (requirements.txt пакеттері) runner-де орындалады —
+# сондықтан job токеніне ешқандай рұқсат бермейміз, репозиторий де checkout жасалмайды.
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Input-тар скриптке тек env арқылы беріледі (script injection-нан қорғау)
+    env:
+      JOB_ID: ${{ inputs.job_id }}
+      ZIP_URL: ${{ inputs.zip_url }}
+      APP_NAME: ${{ inputs.app_name }}
+      ENTRY_POINT: ${{ inputs.entry_point }}
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: Параметрлерді тексеру
+        run: |
+          echo "::add-mask::$ZIP_URL"
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$JOB_ID" =~ ^job_[A-Za-z0-9_]+$ ]]  || fail "job_id форматы қате"
+          [[ "$ZIP_URL" =~ ^https?:// ]]          || fail "zip_url http(s) болуы керек"
+          # entry point: ZIP ішіндегі салыстырмалы жол, .py-мен аяқталады, '..' жоқ
+          [[ "$ENTRY_POINT" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py$ && "$ENTRY_POINT" != *..* ]] \
+                                                  || fail "Entry point форматы қате (мыс. main.py немесе app/main.py)"
+          # .exe атауы: бос емес, 50 таңбаға дейін, Windows тыйым салған таңбаларсыз
+          [[ -n "${APP_NAME// }" && ${#APP_NAME} -le 50 ]] || fail "Қосымша атауы бос немесе 50 таңбадан ұзын"
+          [[ "$APP_NAME" != *[\<\>:\"/\\\|\?\*]* && "$APP_NAME" != *[[:cntrl:]]* ]] \
+                                                  || fail "Қосымша атауында < > : \" / \\ | ? * таңбалары болмауы керек"
+
+      - name: Python 3.11 орнату
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: ZIP жүктеу
+        run: |
+          curl -fsSL --retry 3 --retry-delay 3 --max-time 180 \
+            --max-filesize 104857600 -o site.zip "$ZIP_URL"
+          ls -l site.zip
+
+      - name: ZIP ашу
+        run: |
+          rm -rf src && mkdir src
+          # Python zipfile '..' және абсолют жолдарды өзі тазалайды
+          python -m zipfile -e site.zip src || { echo "::error::ZIP файл бұзық"; exit 1; }
+          rm -rf src/__MACOSX src/.DS_Store
+
+          # ZIP ішінде бір ғана папка болса — оны жайып жіберу
+          shopt -s dotglob nullglob
+          items=(src/*)
+          if [ ${#items[@]} -eq 1 ] && [ -d "${items[0]}" ]; then
+            mv "${items[0]}" src_inner
+            mv src_inner/* src/
+            rmdir src_inner
+          fi
+
+          [ -f "src/$ENTRY_POINT" ] || { echo "::error::ZIP ішінде $ENTRY_POINT табылмады"; exit 1; }
+          echo "Python файлдары:"; (cd src && find . -name '*.py' | head -50)
+
+      - name: Тәуелділіктерді орнату (requirements.txt)
+        working-directory: src
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          else
+            echo "requirements.txt жоқ — өткізіп жіберілді"
+          fi
+
+      - name: PyInstaller орнату
+        run: python -m pip install "pyinstaller>=6,<7"
+
+      - name: PyInstaller --onefile
+        working-directory: src
+        run: |
+          python -m PyInstaller --onefile --noconfirm --clean \
+            --name "$APP_NAME" "$ENTRY_POINT"
+          ls -l dist
+
+      - name: EXE-ні сақтау
+        uses: actions/upload-artifact@v4
+        with:
+          name: exe
+          path: src/dist/*.exe
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

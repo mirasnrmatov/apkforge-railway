@@ -373,15 +373,27 @@
       steps:[['00:00','Скрипт оқылуда...','c-muted'],['00:01','main.py табылды ✓','c-ok'],['00:02','тәуелділіктер талданды','c-accent'],['00:04','pyinstaller --onefile орындалуда...','c-amber'],['00:16','бір файлдық .exe жиналды ✓','c-ok'],['00:17','BUILD SUCCESSFUL — main.exe','c-ok']]},
   };
   let platform='android';
+  const REAL_BUILD=['android','python']; // нақты build бар платформалар; қалғаны демо
+  const fieldValues={}; // package ID / entry point өрісі әр платформа үшін бөлек сақталады
 
   document.querySelectorAll('.plat').forEach(p=>{
     p.addEventListener('mousemove',e=>{const r=p.getBoundingClientRect();p.style.setProperty('--mx',(e.clientX-r.left)+'px');p.style.setProperty('--my',(e.clientY-r.top)+'px')});
-    p.addEventListener('click',()=>{document.querySelectorAll('.plat').forEach(x=>x.classList.remove('active'));p.classList.add('active');platform=p.dataset.p;applyPlatform()});
+    p.addEventListener('click',()=>{
+      document.querySelectorAll('.plat').forEach(x=>x.classList.remove('active'));p.classList.add('active');
+      fieldValues[platform]=pkgInput.value;
+      platform=p.dataset.p;
+      pkgInput.value=fieldValues[platform]||'';
+      applyPlatform();
+    });
   });
+  // файл таңдалған платформаға сәйкес пе (.zip / .py)
+  function fileAllowed(f){
+    return PLATFORMS[platform].accept.split(',').some(ext=>f.name.toLowerCase().endsWith(ext));
+  }
   function applyPlatform(){
     const c=PLATFORMS[platform];
     fileInput.setAttribute('accept',c.accept);
-    chip.querySelector('.fi').textContent=c.fileHint;
+    chip.querySelector('.fi').textContent=selectedFile&&/\.py$/i.test(selectedFile.name)?'PY':c.fileHint;
     btnText.textContent=c.btn;
     pkgLabel.innerHTML=c.pkgLabel;
     pkgInput.placeholder=c.pkgPh;
@@ -399,7 +411,7 @@
     const MB=1024*1024;
     return bytes<MB ? Math.max(1,Math.round(bytes/1024))+' KB' : (bytes/MB).toFixed(2)+' MB';
   }
-  function setFile(f){selectedFile=f;document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=formatSize(f.size);chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
+  function setFile(f){selectedFile=f;chip.querySelector('.fi').textContent=/\.py$/i.test(f.name)?'PY':'ZIP';document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=formatSize(f.size);chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
   document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';selectedFile=null;hasFile=false;buildBtn.disabled=true});
 
   document.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',()=>{document.querySelectorAll('.sw').forEach(s=>s.classList.remove('active'));sw.classList.add('active')}));
@@ -417,6 +429,8 @@
     line.innerHTML='<span class="t">'+t+'</span><span class="'+(cls||'c-muted')+'">'+msg+'</span>';
     con.appendChild(line);con.scrollTop=con.scrollHeight;
   }
+  // logLine innerHTML қолданады — пайдаланушы енгізген мәтін (мыс. .exe аты) escape болуы керек
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
   function setStatus(txt,color){st.innerHTML='<span class="d"></span>'+txt;st.style.color=color}
 
   dlBtn.addEventListener('click',()=>{ if(downloadUrl) window.location.href=downloadUrl });
@@ -424,8 +438,8 @@
   buildBtn.addEventListener('click',async()=>{
     if(!hasFile||!selectedFile)return;
 
-    // Android — нақты build; басқасы әзірге демо
-    if(platform!=='android'){
+    // Android және Python — нақты build; басқасы әзірге демо
+    if(!REAL_BUILD.includes(platform)){
       con.innerHTML='';setStatus('running','var(--amber)');
       const steps=PLATFORMS[platform].steps;let i=0;
       (function next(){
@@ -436,17 +450,27 @@
       return;
     }
 
-    buildBtn.disabled=true;
     result.classList.remove('show');
     con.innerHTML='';
+    if(!fileAllowed(selectedFile)){
+      logLine('✗ ҚАТЕ: бұл платформа үшін '+PLATFORMS[platform].accept.replace(/,/g,' немесе ')+' файл керек','c-amber');
+      setStatus('error','var(--danger)');
+      return;
+    }
+    buildBtn.disabled=true;
     setStatus('running','var(--amber)');
 
     // деректерді жинау
     const fd=new FormData();
+    fd.append('platform',platform);
     fd.append('zip',selectedFile,selectedFile.name);
     fd.append('appName',document.getElementById('appName').value||'MyApp');
-    fd.append('pkg',pkgInput.value||'com.apkforge.app');
-    fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
+    if(platform==='python'){
+      fd.append('entry',pkgInput.value.trim()); // бос болса сервер main.py-ды өзі табады
+    }else{
+      fd.append('pkg',pkgInput.value||'com.apkforge.app');
+      fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
+    }
 
     // 1) файлды жіберіп, jobId алу
     logLine('Файлдар серверге жүктелуде...','c-muted');
@@ -501,10 +525,11 @@
       for(;shown<log.length;shown++)logLine(log[shown],'c-muted');
 
       if(data.status==='done'){
-        logLine('BUILD SUCCESSFUL — APK дайын ✓','c-ok');
+        const fileName=data.fileName||'app-release.apk';
+        logLine('BUILD SUCCESSFUL — '+escapeHtml(fileName)+' дайын ✓','c-ok');
         setStatus('done','var(--ok)');
         downloadUrl=data.download;
-        document.getElementById('resName').textContent='app-release.apk · '+data.size;
+        document.getElementById('resName').textContent=fileName+' · '+data.size;
         result.classList.add('show');
         return finish();
       }
