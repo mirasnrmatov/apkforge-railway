@@ -4,3 +4,6 @@ output
 uploads
 *.log
 .git
+# build GitHub Actions-та жүреді — контейнерге шаблон мен workflow керек емес
+template
+.github

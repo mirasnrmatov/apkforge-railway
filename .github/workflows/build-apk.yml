@@ -1,0 +1,162 @@
+# APKForge — APK-ны GitHub Actions runner-де құрастыру.
+# Railway сервері бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
+# сосын run-ды run-name ішіндегі job_id бойынша тауып, күйін бақылайды.
+# Қадам атауларын өзгертсеңіз, server.js ішіндегі STEP_HINTS-ті де жаңартыңыз.
+
+name: Build APK
+
+run-name: "APK build ${{ inputs.job_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "APKForge job ID (серверден келеді, мыс. job_1789131361951_a1b2c3)"
+        required: true
+        type: string
+      zip_url:
+        description: "Сайт ZIP файлының public URL-і"
+        required: true
+        type: string
+      app_name:
+        description: "Қосымша атауы"
+        required: true
+        default: "MyApp"
+        type: string
+      package:
+        description: "Package ID (мыс. com.mysite.app)"
+        required: true
+        default: "com.apkforge.app"
+        type: string
+      color:
+        description: "Тема түсі (мыс. #3DD4C8)"
+        required: true
+        default: "#3DD4C8"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Input-тар скриптке тек env арқылы беріледі (script injection-нан қорғау)
+    env:
+      JOB_ID: ${{ inputs.job_id }}
+      ZIP_URL: ${{ inputs.zip_url }}
+      APP_NAME: ${{ inputs.app_name }}
+      APP_PACKAGE: ${{ inputs.package }}
+      THEME_COLOR: ${{ inputs.color }}
+
+    steps:
+      - name: Параметрлерді тексеру
+        run: |
+          echo "::add-mask::$ZIP_URL"
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$JOB_ID" =~ ^job_[A-Za-z0-9_]+$ ]]                        || fail "job_id форматы қате"
+          [[ "$ZIP_URL" =~ ^https?:// ]]                                 || fail "zip_url http(s) болуы керек"
+          [[ "$APP_PACKAGE" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]  || fail "Package ID форматы қате (мыс. com.mysite.app)"
+          [[ "$THEME_COLOR" =~ ^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$ ]]     || fail "Түс форматы қате (мыс. #3DD4C8)"
+          [[ -n "${APP_NAME// }" && ${#APP_NAME} -le 50 ]]               || fail "Қосымша атауы бос немесе 50 таңбадан ұзын"
+          echo "WORK=$RUNNER_TEMP/project" >> "$GITHUB_ENV"
+
+      - name: Репозиторийді алу
+        uses: actions/checkout@v4
+
+      - name: Java 17 орнату
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+          cache-dependency-path: |
+            template/**/*.gradle*
+            template/**/gradle-wrapper.properties
+
+      - name: Шаблонды көшіру
+        run: cp -r template "$WORK"
+
+      - name: ZIP жүктеу
+        run: |
+          curl -fsSL --retry 3 --retry-delay 3 --max-time 180 \
+            --max-filesize 104857600 -o "$RUNNER_TEMP/site.zip" "$ZIP_URL"
+          ls -l "$RUNNER_TEMP/site.zip"
+
+      - name: ZIP ашу (assets/www)
+        run: |
+          WWW="$WORK/app/src/main/assets/www"
+          rm -rf "$WWW" && mkdir -p "$WWW"
+          unzip -q "$RUNNER_TEMP/site.zip" -d "$WWW" || { echo "::error::ZIP файл бұзық"; exit 1; }
+          rm -rf "$WWW/__MACOSX" "$WWW/.DS_Store"
+
+          # ZIP ішінде бір ғана папка болса — оны жайып жіберу
+          shopt -s dotglob nullglob
+          items=("$WWW"/*)
+          if [ ${#items[@]} -eq 1 ] && [ -d "${items[0]}" ]; then
+            tmp="$RUNNER_TEMP/inner"
+            mv "${items[0]}" "$tmp"
+            mv "$tmp"/* "$WWW"/
+            rmdir "$tmp"
+          fi
+
+          [ -f "$WWW/index.html" ] || { echo "::error::ZIP ішінде index.html табылмады"; exit 1; }
+          echo "Файлдар саны: $(find "$WWW" -type f | wc -l)"
+
+      - name: Параметрлерді жазу
+        run: |
+          python3 - <<'PY'
+          import os
+
+          work = os.environ["WORK"]
+
+          def xml_string(s):
+              # Android strings.xml үшін escape
+              s = "".join(ch for ch in s if ch >= " ")
+              s = (s.replace("\\", "\\\\").replace("&", "&amp;").replace("<", "&lt;")
+                    .replace(">", "&gt;").replace("'", "\\'").replace('"', '\\"'))
+              return "\\" + s if s[:1] in ("@", "?") else s
+
+          def replace(rel, tokens):
+              path = os.path.join(work, rel)
+              with open(path, encoding="utf-8") as f:
+                  txt = f.read()
+              for token, value in tokens.items():
+                  if token not in txt:
+                      raise SystemExit(f"::error::{token} табылмады: {rel}")
+                  txt = txt.replace(token, value)
+              with open(path, "w", encoding="utf-8") as f:
+                  f.write(txt)
+
+          replace("app/build.gradle", {
+              "__APPLICATION_ID__": os.environ["APP_PACKAGE"],
+              "__VERSION_CODE__": "1",
+              "__VERSION_NAME__": "1.0",
+          })
+          replace("app/src/main/res/values/strings.xml", {
+              "__APP_NAME__": xml_string(os.environ["APP_NAME"].strip()),
+          })
+          replace("app/src/main/res/values/colors.xml", {
+              "__THEME_COLOR__": os.environ["THEME_COLOR"],
+          })
+          print("Параметрлер жазылды")
+          PY
+
+      - name: Gradle assembleRelease
+        run: |
+          # Template-тегі -Xmx512m Railway үшін еді; runner-де жад көп.
+          # ~/.gradle/gradle.properties жоба gradle.properties-тен басым.
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+          cd "$WORK"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: APK-ны сақтау
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ runner.temp }}/project/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
