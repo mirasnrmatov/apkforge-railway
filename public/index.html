@@ -394,7 +394,12 @@
   ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));
   ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));
   drop.addEventListener('drop',e=>{if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
-  function setFile(f){selectedFile=f;document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=(f.size/1024/1024).toFixed(2)+' MB';chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
+  // 1 MB-тан кіші болса KB-пен, әйтпесе MB-пен
+  function formatSize(bytes){
+    const MB=1024*1024;
+    return bytes<MB ? Math.max(1,Math.round(bytes/1024))+' KB' : (bytes/MB).toFixed(2)+' MB';
+  }
+  function setFile(f){selectedFile=f;document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=formatSize(f.size);chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
   document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';selectedFile=null;hasFile=false;buildBtn.disabled=true});
 
   document.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',()=>{document.querySelectorAll('.sw').forEach(s=>s.classList.remove('active'));sw.classList.add('active')}));
