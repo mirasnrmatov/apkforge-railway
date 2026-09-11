@@ -145,6 +145,10 @@ async function runBuild(jobId, job, { appName, pkg, color, zipPath }) {
     // 6) gradle build
     add('gradle assembleRelease орындалуда... (бірінші рет бірнеше минут)');
     const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+    // Linux-та gradlew файлына орындау рұқсатын беру
+    if (process.platform !== 'win32') {
+      try { fs.chmodSync(path.join(jobDir, 'gradlew'), 0o755); } catch (e) {}
+    }
     await new Promise((resolve, reject) => {
       execFile(gradlew, ['assembleRelease', '--no-daemon'], {
         cwd: jobDir, shell: true, maxBuffer: 1024 * 1024 * 50,
