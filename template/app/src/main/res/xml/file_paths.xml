@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider: камера суреттері cache/camera/ ішінде уақытша сақталады (MainActivity.createCameraIntent) -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+</paths>

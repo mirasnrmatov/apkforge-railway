@@ -2,17 +2,25 @@ package com.apkforge.webview
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.DownloadManager
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.view.KeyEvent
 import android.webkit.CookieManager
+import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebChromeClient.FileChooserParams
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -23,6 +31,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import java.io.File
 
 /**
  * Барлық веб-код assets/www/ ішінде тұрады.
@@ -52,6 +62,22 @@ class MainActivity : ComponentActivity() {
             } else {
                 Toast.makeText(this, "Жүктеу үшін жад рұқсаты керек", Toast.LENGTH_LONG).show()
             }
+        }
+
+    // <input type="file">: WebView файл күтіп тұрған callback және камера түсіретін файл
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var cameraFile: File? = null
+    private var cameraUri: Uri? = null
+
+    private val fileChooser =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val uris = if (result.resultCode == Activity.RESULT_OK) pickedUris(result.data) else null
+            // Бас тартса да callback-ке жауап беру керек, әйтпесе келесі басулар істемейді
+            fileCallback?.onReceiveValue(uris)
+            fileCallback = null
+            cameraFile?.let { if (uris?.contains(cameraUri) != true) it.delete() }
+            cameraFile = null
+            cameraUri = null
         }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -99,6 +125,18 @@ class MainActivity : ComponentActivity() {
                 progress.progress = newProgress
                 progress.visibility =
                     if (newProgress < 100) ProgressBar.VISIBLE else ProgressBar.GONE
+            }
+
+            // <input type="file"> басылғанда — файл таңдау (және камера) терезесі
+            override fun onShowFileChooser(
+                view: WebView?,
+                callback: ValueCallback<Array<Uri>>?,
+                params: FileChooserParams?,
+            ): Boolean {
+                if (callback == null || params == null) return false
+                fileCallback?.onReceiveValue(null)      // алдыңғы аяқталмаған сұрау
+                fileCallback = callback
+                return openFileChooser(params)
             }
         }
 
@@ -151,6 +189,105 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Жүктеу сәтсіз: ${e.message}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun openFileChooser(params: FileChooserParams): Boolean {
+        val mimeTypes = acceptedMimeTypes(params)
+        val picker = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeTypes.singleOrNull() ?: "*/*"
+            if (mimeTypes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+            if (params.mode == FileChooserParams.MODE_OPEN_MULTIPLE) {
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+        }
+
+        // Сурет қабылданса — камераны да ұсынамыз; capture атрибуты болса, бірден камера ашылады
+        val acceptsImages = mimeTypes.isEmpty() || mimeTypes.any { it.startsWith("image/") }
+        val camera = if (acceptsImages) createCameraIntent() else null
+        val candidates = buildList {
+            if (camera != null && params.isCaptureEnabled) add(camera)
+            add(
+                Intent.createChooser(picker, null).apply {
+                    if (camera != null) putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camera))
+                }
+            )
+        }
+        for (intent in candidates) {
+            try {
+                fileChooser.launch(intent)
+                return true
+            } catch (e: ActivityNotFoundException) {
+                // келесі нұсқаны байқап көреміз (мыс. камера қосымшасы жоқ)
+            }
+        }
+        fileCallback = null
+        cameraFile?.delete()
+        cameraFile = null
+        cameraUri = null
+        Toast.makeText(this, "Файл таңдайтын қосымша табылмады", Toast.LENGTH_LONG).show()
+        return false
+    }
+
+    // accept="image/*,.pdf" → ["image/*", "application/pdf"]; бос тізім — кез келген файл
+    private fun acceptedMimeTypes(params: FileChooserParams): Array<String> {
+        val types = params.acceptTypes.orEmpty()
+            .flatMap { it.split(',') }
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+        val mimeTypes = types.map { type ->
+            when {
+                type.startsWith(".") ->
+                    MimeTypeMap.getSingleton().getMimeTypeFromExtension(type.drop(1))
+                        // белгісіз кеңейтім — шектемейміз, әйтпесе файлды мүлдем таңдай алмайды
+                        ?: return emptyArray()
+                "/" in type -> type
+                else -> return emptyArray()
+            }
+        }.distinct()
+        return if ("*/*" in mimeTypes) emptyArray() else mimeTypes.toTypedArray()
+    }
+
+    // Камера суретті cache/camera/ ішіне сақтайды; WebView оны FileProvider URI арқылы оқиды
+    private fun createCameraIntent(): Intent? {
+        val dir = File(cacheDir, "camera").apply { mkdirs() }
+        // ескі (бір тәуліктен асқан) суреттерді тазалау
+        dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24 * 60 * 60 * 1000 }
+            ?.forEach { it.delete() }
+
+        val file = File(dir, "photo_${System.currentTimeMillis()}.jpg")
+        val uri = try {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        } catch (e: IllegalArgumentException) {
+            return null
+        }
+        val flags = Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            clipData = ClipData.newRawUri("", uri)
+            addFlags(flags)
+        }
+        // Chooser арқылы ашылғанда да камера қосымшасы файлға жаза алсын
+        @Suppress("DEPRECATION")
+        packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).forEach {
+            grantUriPermission(it.activityInfo.packageName, uri, flags)
+        }
+        cameraFile = file
+        cameraUri = uri
+        return intent
+    }
+
+    // Таңдалған файлдар: бірнеше (ClipData), біреу (data) немесе камера суреті
+    private fun pickedUris(data: Intent?): Array<Uri>? {
+        val clip = data?.clipData
+        val uris = when {
+            clip != null && clip.itemCount > 0 && clip.getItemAt(0).uri != cameraUri ->
+                Array(clip.itemCount) { clip.getItemAt(it).uri }
+            data?.data != null -> arrayOf(data.data!!)
+            cameraFile?.let { it.exists() && it.length() > 0 } == true -> arrayOf(cameraUri!!)
+            else -> null
+        }
+        return uris?.filterNotNull()?.toTypedArray()?.takeIf { it.isNotEmpty() }
     }
 
     // Артқа батырма — веб-беттер тарихы бойынша жүреді
