@@ -356,6 +356,7 @@
   const pkgInput=document.getElementById('pkg');
   const pkgLabel=document.getElementById('pkgLabel');
   let hasFile=false;
+  let selectedFile=null; // таңдалған ZIP (input арқылы да, drag&drop арқылы да)
 
   const PLATFORMS={
     android:{accept:'.zip',fileHint:'ZIP',btn:'APK құрастыру',
@@ -393,8 +394,8 @@
   ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));
   ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));
   drop.addEventListener('drop',e=>{if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
-  function setFile(f){document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=(f.size/1024/1024).toFixed(2)+' MB';chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
-  document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';hasFile=false;buildBtn.disabled=true});
+  function setFile(f){selectedFile=f;document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=(f.size/1024/1024).toFixed(2)+' MB';chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
+  document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';selectedFile=null;hasFile=false;buildBtn.disabled=true});
 
   document.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',()=>{document.querySelectorAll('.sw').forEach(s=>s.classList.remove('active'));sw.classList.add('active')}));
   document.getElementById('iconUp').addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/png';inp.click();inp.onchange=()=>{if(inp.files[0])document.querySelector('#iconUp .a').textContent=inp.files[0].name.slice(0,14)}});
@@ -416,7 +417,7 @@
   dlBtn.addEventListener('click',()=>{ if(downloadUrl) window.location.href=downloadUrl });
 
   buildBtn.addEventListener('click',async()=>{
-    if(!hasFile)return;
+    if(!hasFile||!selectedFile)return;
 
     // Android — нақты build; басқасы әзірге демо
     if(platform!=='android'){
@@ -437,40 +438,80 @@
 
     // деректерді жинау
     const fd=new FormData();
-    fd.append('zip',fileInput.files[0]);
+    fd.append('zip',selectedFile,selectedFile.name);
     fd.append('appName',document.getElementById('appName').value||'MyApp');
     fd.append('pkg',pkgInput.value||'com.apkforge.app');
     fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
 
-    // күту кезінде "тірі" сезім беретін аралық лог
-    logLine('Сервермен байланысу...','c-muted');
-    const waitMsgs=['Файлдар серверге жүктелуде...','Шаблон дайындалуда...','gradle assembleRelease орындалуда... (бірінші рет ұзағырақ)'];
-    let w=0;const waiter=setInterval(()=>{ if(w<waitMsgs.length){logLine(waitMsgs[w],'c-accent');w++} },2500);
-
+    // 1) файлды жіберіп, jobId алу
+    logLine('Файлдар серверге жүктелуде...','c-muted');
+    let jobId;
     try{
       const r=await fetch('/api/build',{method:'POST',body:fd});
-      const data=await r.json();
-      clearInterval(waiter);
+      const data=await r.json().catch(()=>({ok:false,error:'Сервер жауабы қате (HTTP '+r.status+')'}));
+      if(!data.ok||!data.jobId){
+        logLine('✗ ҚАТЕ: '+data.error,'c-amber');
+        setStatus('error','var(--danger)');
+        buildBtn.disabled=false;
+        return;
+      }
+      jobId=data.jobId;
+    }catch(e){
+      logLine('✗ Сервермен байланыс үзілді: '+e.message,'c-amber');
+      setStatus('error','var(--danger)');
+      buildBtn.disabled=false;
+      return;
+    }
 
-      if(data.ok){
-        (data.log||[]).forEach(m=>logLine(m,'c-muted'));
+    // 2) әр 3 секунд сайын күйін сұрау
+    logLine('Build басталды, күтіңіз... (бірінші рет бірнеше минут)','c-accent');
+    pollStatus(jobId);
+  });
+
+  const POLL_MS=3000;
+  const MAX_POLL_FAILS=10; // қатарынан осынша сәтсіз сұраудан кейін тоқтаймыз
+  function pollStatus(jobId){
+    let shown=0;   // консольге шығарылған лог жолдарының саны
+    let fails=0;
+    const finish=()=>{buildBtn.disabled=false};
+
+    const tick=async()=>{
+      let data;
+      try{
+        const r=await fetch('/api/status/'+encodeURIComponent(jobId),{cache:'no-store'});
+        data=await r.json();
+        fails=0;
+      }catch(e){
+        // уақытша желі/прокси қатесі — қайта тырысамыз
+        if(++fails>=MAX_POLL_FAILS){
+          logLine('✗ Сервермен байланыс үзілді: '+e.message,'c-amber');
+          setStatus('error','var(--danger)');
+          return finish();
+        }
+        return setTimeout(tick,POLL_MS);
+      }
+
+      // тек жаңа лог жолдарын шығару
+      const log=data.log||[];
+      for(;shown<log.length;shown++)logLine(log[shown],'c-muted');
+
+      if(data.status==='done'){
         logLine('BUILD SUCCESSFUL — APK дайын ✓','c-ok');
         setStatus('done','var(--ok)');
         downloadUrl=data.download;
         document.getElementById('resName').textContent='app-release.apk · '+data.size;
         result.classList.add('show');
-      }else{
-        (data.log||[]).forEach(m=>logLine(m,'c-muted'));
-        logLine('✗ ҚАТЕ: '+data.error,'c-amber');
-        setStatus('error','var(--danger)');
+        return finish();
       }
-    }catch(e){
-      clearInterval(waiter);
-      logLine('✗ Сервермен байланыс үзілді: '+e.message,'c-amber');
-      setStatus('error','var(--danger)');
-    }
-    buildBtn.disabled=false;
-  });
+      if(data.status==='error'){
+        logLine('✗ ҚАТЕ: '+(data.error||'белгісіз қате'),'c-amber');
+        setStatus('error','var(--danger)');
+        return finish();
+      }
+      setTimeout(tick,POLL_MS); // running
+    };
+    setTimeout(tick,POLL_MS);
+  }
 </script>
 </body>
 </html>

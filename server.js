@@ -7,7 +7,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;             // Railway PORT-ты өзі береді
 
 // ---- жолдар ----
 const ROOT = __dirname;
@@ -44,25 +44,60 @@ function replaceInFile(file, replacements) {
   fs.writeFileSync(file, txt);
 }
 
-// ---- негізгі build маршруты ----
-app.post('/api/build', upload.single('zip'), async (req, res) => {
-  const jobId = 'job_' + Date.now();
+// ---- build жұмыстары (жадта) ----
+// jobId -> { status: 'running'|'done'|'error', log, error, download, size, finishedAt }
+const jobs = new Map();
+const JOB_TTL_MS = 60 * 60 * 1000; // аяқталған job 1 сағаттан кейін жадтан өшіріледі
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of jobs) {
+    if (job.finishedAt && now - job.finishedAt > JOB_TTL_MS) jobs.delete(id);
+  }
+}, 10 * 60 * 1000).unref();
+
+// ---- негізгі build маршруты: build-ті фонда бастап, дереу jobId қайтарады ----
+app.post('/api/build', upload.single('zip'), (req, res) => {
+  // 1) параметрлер (тез тексерулер — build басталмай тұрып)
+  const appName = (req.body.appName || 'MyApp').trim();
+  const pkg = (req.body.pkg || 'com.apkforge.app').trim();
+  const color = (req.body.color || '#3DD4C8').trim();
+  if (!req.file) {
+    return res.status(400).json({ ok: false, error: 'ZIP файл жүктелмеді' });
+  }
+  // package ID тексеру (қарапайым)
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(pkg)) {
+    fs.rmSync(req.file.path, { force: true });
+    return res.status(400).json({ ok: false, error: 'Package ID форматы қате (мыс. com.mysite.app)' });
+  }
+
+  const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const job = { status: 'running', log: [], error: null, download: null, size: null, finishedAt: null };
+  jobs.set(jobId, job);
+
+  runBuild(jobId, job, { appName, pkg, color, zipPath: req.file.path });
+  res.json({ ok: true, jobId });
+});
+
+// ---- build күйі ----
+app.get('/api/status/:jobId', (req, res) => {
+  const job = jobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ status: 'error', error: 'Job табылмады', log: [] });
+  res.json({
+    status: job.status,
+    log: job.log,
+    error: job.error,
+    download: job.download,
+    size: job.size,
+  });
+});
+
+// ---- build процесі (фонда орындалады) ----
+async function runBuild(jobId, job, { appName, pkg, color, zipPath }) {
   const jobDir = path.join(WORK_DIR, jobId);
-  const log = [];
-  const add = (m) => { log.push(m); console.log(m); };
+  const add = (m) => { job.log.push(m); console.log(`[${jobId}] ${m}`); };
 
   try {
-    // 1) параметрлер
-    const appName = (req.body.appName || 'MyApp').trim();
-    const pkg = (req.body.pkg || 'com.apkforge.app').trim();
-    const color = (req.body.color || '#3DD4C8').trim();
-    if (!req.file) throw new Error('ZIP файл жүктелмеді');
-
-    // package ID тексеру (қарапайым)
-    if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(pkg)) {
-      throw new Error('Package ID форматы қате (мыс. com.mysite.app)');
-    }
-
     // 2) шаблонды көшіру
     add('Шаблон көшірілуде...');
     copyDir(TEMPLATE_DIR, jobDir);
@@ -72,7 +107,7 @@ app.post('/api/build', upload.single('zip'), async (req, res) => {
     const wwwDir = path.join(jobDir, 'app', 'src', 'main', 'assets', 'www');
     fs.rmSync(wwwDir, { recursive: true, force: true });
     fs.mkdirSync(wwwDir, { recursive: true });
-    new AdmZip(req.file.path).extractAllTo(wwwDir, true);
+    new AdmZip(zipPath).extractAllTo(wwwDir, true);
 
     // егер ZIP ішінде бір ғана папка болса, оны жайып жіберу
     const items = fs.readdirSync(wwwDir);
@@ -127,20 +162,20 @@ app.post('/api/build', upload.single('zip'), async (req, res) => {
     fs.copyFileSync(apkSrc, apkDest);
     add('BUILD SUCCESSFUL');
 
-    res.json({
-      ok: true,
-      log,
-      download: `/api/download/${path.basename(apkDest)}`,
-      size: (fs.statSync(apkDest).size / 1024 / 1024).toFixed(1) + ' MB',
-    });
+    job.download = `/api/download/${path.basename(apkDest)}`;
+    job.size = (fs.statSync(apkDest).size / 1024 / 1024).toFixed(1) + ' MB';
+    job.status = 'done';
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message, log });
+    job.error = e.message;
+    job.status = 'error';
+    console.error(`[${jobId}] ҚАТЕ: ${e.message}`);
   } finally {
+    job.finishedAt = Date.now();
     // уақытша файлдарды тазалау
-    if (req.file) fs.rmSync(req.file.path, { force: true });
+    fs.rmSync(zipPath, { force: true });
     fs.rmSync(jobDir, { recursive: true, force: true });
   }
-});
+}
 
 // ---- APK жүктеу ----
 app.get('/api/download/:name', (req, res) => {
