@@ -238,34 +238,7 @@
   .btn-ai .spark{width:22px;height:22px;border-radius:50%;background:var(--grad);display:grid;place-items:center}
   .btn-ai .spark svg{width:12px;height:12px;fill:#07090d}
   .btn-ai:hover{transform:translateY(-1px);box-shadow:0 8px 24px -8px rgba(139,124,246,.55)}
-  .btn-ai:focus-visible,.btn-ghost:focus-visible,.btn-copy:focus-visible,.ex-dl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-
-  /* examples */
-  .examples{margin:-18px 0 44px;animation:rise .7s .08s cubic-bezier(.2,.7,.2,1) both;scroll-margin-top:90px}
-  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-  .sec-head h2{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.01em}
-  .sec-head p{color:var(--muted);font-size:13px}
-  .ex-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-  @media(max-width:900px){.ex-grid{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:520px){.ex-grid{grid-template-columns:1fr}}
-  .ex{
-    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;
-    display:flex;flex-direction:column;gap:12px;transition:.22s cubic-bezier(.2,.7,.2,1);
-  }
-  .ex:hover{border-color:var(--border-2);transform:translateY(-3px);box-shadow:0 16px 40px -14px rgba(0,0,0,.6)}
-  .ex-top{display:flex;align-items:center;justify-content:space-between}
-  .ex-emoji{width:40px;height:40px;border-radius:11px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;font-size:19px}
-  .ex-tag{font-family:'JetBrains Mono';font-size:11px;padding:2px 8px;border-radius:6px;color:var(--accent-2);background:rgba(61,212,200,.1)}
-  .ex-tag.py{color:var(--violet);background:rgba(139,124,246,.12)}
-  .ex h3{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:16px}
-  .ex p{color:var(--muted);font-size:13px;flex:1}
-  .ex-dl{
-    display:flex;align-items:center;justify-content:center;gap:7px;width:100%;cursor:pointer;
-    background:var(--surface-2);border:1px solid var(--border);color:var(--text);
-    font:500 13px 'Inter';padding:9px 12px;border-radius:var(--radius-sm);transition:.15s;
-  }
-  .ex-dl svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
-  .ex-dl:hover{border-color:var(--accent);color:var(--accent-2)}
+  .btn-ai:focus-visible,.btn-ghost:focus-visible,.btn-copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
   /* modal */
   .modal{
@@ -316,7 +289,7 @@
     padding:11px 18px;border-radius:100px;box-shadow:0 12px 32px -10px rgba(0,0,0,.7);transition:.25s;
   }
   .toast.show{opacity:1;transform:translate(-50%,0)}
-  @media(prefers-reduced-motion:reduce){.modal,.modal-card,.toast,.ex,.btn-ai{transition:none}}
+  @media(prefers-reduced-motion:reduce){.modal,.modal-card,.toast,.btn-ai{transition:none}}
 
   footer{position:relative;z-index:1;text-align:center;color:var(--faint);font-size:13px;padding:34px;border-top:1px solid var(--border)}
   @media(max-width:560px){.wrap{padding:48px 18px 64px}header{padding:15px 18px}.nav a:not(.cta){display:none}}
@@ -328,7 +301,6 @@
   <div class="logo"><span class="mark">◆</span> APKForge</div>
   <nav class="nav">
     <a href="#">Құжаттама</a>
-    <a href="#examples">Мысалдар</a>
     <a href="#" class="cta">Бастау</a>
   </nav>
 </header>
@@ -340,42 +312,8 @@
       <span class="badge"><span class="live"></span> Тіркелусіз · толықтай тегін</span>
       <button type="button" class="btn-ai" id="aiOpen" aria-haspopup="dialog">
         <span class="spark"><svg viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg></span>
-        AI-ға сұрау
+        ZIP промт
       </button>
-    </div>
-  </section>
-
-  <!-- examples -->
-  <section class="examples" id="examples">
-    <div class="sec-head">
-      <h2>Мысалдар</h2>
-      <p>Дайын жобаны жүктеп, бірден құрастырып көріңіз</p>
-    </div>
-    <div class="ex-grid">
-      <article class="ex">
-        <div class="ex-top"><span class="ex-emoji">🧮</span><span class="ex-tag">Android</span></div>
-        <h3>Калькулятор</h3>
-        <p>Қарапайым HTML/CSS/JS калькулятор — телефонда қосымша ретінде ашылады.</p>
-        <button type="button" class="ex-dl" data-example="calculator"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
-      </article>
-      <article class="ex">
-        <div class="ex-top"><span class="ex-emoji">📔</span><span class="ex-tag">Android</span></div>
-        <h3>Күнделік</h3>
-        <p>Жазбаларды localStorage-та сақтайтын жеке күнделік.</p>
-        <button type="button" class="ex-dl" data-example="diary"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
-      </article>
-      <article class="ex">
-        <div class="ex-top"><span class="ex-emoji">🔢</span><span class="ex-tag py">Python</span></div>
-        <h3>Санауыш</h3>
-        <p>Tkinter терезесі бар батырмалы санауыш — Windows .exe болады.</p>
-        <button type="button" class="ex-dl" data-example="counter"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
-      </article>
-      <article class="ex">
-        <div class="ex-top"><span class="ex-emoji">✅</span><span class="ex-tag py">Python</span></div>
-        <h3>Тапсырмалар тізімі</h3>
-        <p>Тапсырмаларды файлға сақтайтын шағын to-do бағдарламасы.</p>
-        <button type="button" class="ex-dl" data-example="todo"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
-      </article>
     </div>
   </section>
 
@@ -479,17 +417,17 @@
 
 <footer>APKForge — демо интерфейс · build логикасы келесі кезеңде қосылады</footer>
 
-<!-- AI промт модалы -->
+<!-- ZIP промт модалы -->
 <div class="modal" id="aiModal" aria-hidden="true">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
     <div class="modal-head">
       <span class="spark"><svg viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg></span>
-      <h2 id="aiTitle">AI-ға сұрау</h2>
+      <h2 id="aiTitle">ZIP жасауға промт</h2>
       <button type="button" class="modal-x" data-close aria-label="Жабу">×</button>
     </div>
     <p class="modal-intro">Қандай ZIP керегін білмейсіз бе? Осы промтты AI-ға (ChatGPT, Claude, Gemini) жіберіңіз — ол дұрыс құрылымдағы файлдарды даярлап береді.</p>
     <!-- Промт мәтіні: prompt-for-ai.md → «ПРОМТ» бөлімі -->
-    <textarea id="aiPrompt" readonly spellcheck="false" aria-label="AI-ға арналған промт">Сен APKForge сервисіне жүктеуге арналған жоба дайындайтын көмекшісің. APKForge кодты дайын бағдарламаға айналдырады:
+    <textarea id="aiPrompt" readonly spellcheck="false" aria-label="ZIP жасауға арналған промт">Сен APKForge сервисіне жүктеуге арналған жоба дайындайтын көмекшісің. APKForge кодты дайын бағдарламаға айналдырады:
 • Android — HTML/CSS/JS сайттан .apk (WebView)
 • Desktop — HTML/CSS/JS сайттан Windows .exe (Electron)
 • Python — .py скрипттен Windows .exe (PyInstaller)
@@ -692,7 +630,7 @@
     clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2400);
   }
 
-  // ---- AI промт модалы ----
+  // ---- ZIP промт модалы ----
   const aiModal=document.getElementById('aiModal');
   const aiOpen=document.getElementById('aiOpen');
   const aiPrompt=document.getElementById('aiPrompt');
@@ -731,14 +669,6 @@
     label.textContent='Көшірілді ✓';toast('Промт көшірілді — енді AI чатына қойыңыз');
     setTimeout(()=>{label.textContent='Көшіру'},2000);
   });
-
-  // ---- мысал ZIP-тер (әзірге placeholder) ----
-  const EXAMPLE_ZIPS={}; // мыс. calculator:'/examples/calculator.zip'
-  document.querySelectorAll('.ex-dl').forEach(b=>b.addEventListener('click',()=>{
-    const url=EXAMPLE_ZIPS[b.dataset.example];
-    if(url)window.location.href=url;
-    else toast('Бұл мысал жақында қосылады');
-  }));
 
   const POLL_MS=3000;
   const MAX_POLL_FAILS=10; // қатарынан осынша сәтсіз сұраудан кейін тоқтаймыз
