@@ -179,6 +179,28 @@
   .icon-upload .box{width:40px;height:40px;border-radius:9px;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;color:var(--muted);font-size:19px}
   .icon-upload .t .a{font-weight:600;font-size:13px}
   .icon-upload .t .b{color:var(--muted);font-size:12px}
+  .icon-upload .box{overflow:hidden;background-size:cover;background-position:center}
+  .icon-upload.has .box{border-color:rgba(61,212,200,.45);color:transparent}
+  .icon-upload.has{border-color:rgba(61,212,200,.3)}
+  .icon-upload:focus-visible,.zip-icon input:focus-visible+.cb{outline:2px solid var(--accent);outline-offset:2px}
+  /* «ZIP ішінде icon.png бар» белгісі */
+  .zip-icon{display:flex;align-items:center;gap:9px;margin-top:10px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none;width:fit-content}
+  .zip-icon input{position:absolute;opacity:0;pointer-events:none}
+  .zip-icon .cb{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border-2);background:var(--surface-2);display:grid;place-items:center;transition:.15s;flex-shrink:0}
+  .zip-icon .cb svg{width:12px;height:12px;stroke:#07090d;stroke-width:3;fill:none;opacity:0;transition:.15s}
+  .zip-icon input:checked+.cb{background:var(--grad);border-color:transparent}
+  .zip-icon input:checked+.cb svg{opacity:1}
+  .zip-icon:hover .cb{border-color:var(--accent)}
+  .zip-icon code{font-family:'JetBrains Mono';font-size:12px;color:var(--accent-2)}
+  /* өріс ескертулері */
+  .field-err{display:none;margin-top:7px;font-size:12.5px;color:var(--danger)}
+  .field-err.show{display:block}
+  .field-warn{display:none;margin-top:8px;font-size:12.5px;color:var(--amber)}
+  .field-warn.show{display:block}
+  input[type=text].invalid{border-color:rgba(242,120,120,.6)}
+  input[type=text].invalid:focus{border-color:var(--danger);box-shadow:0 0 0 3px rgba(242,120,120,.14)}
+  .build-hint{margin-top:10px;text-align:center;font-size:13px;color:var(--faint);min-height:20px}
+  .build-hint b{color:var(--muted);font-weight:500}
   .color-pick{display:flex;align-items:center}
   .swatches{display:flex;gap:8px}
   .sw{width:28px;height:28px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:.15s;position:relative}
@@ -365,18 +387,19 @@
       <div class="panel-title"><span class="n">02</span> Баптау</div>
       <div class="field">
         <label>Қосымша аты</label>
-        <input type="text" id="appName" placeholder="Менің Қосымшам">
+        <input type="text" id="appName" placeholder="Менің Қосымшам" maxlength="50">
       </div>
       <div class="field">
-        <label id="pkgLabel">Package ID <span class="hint">(бірегей болуы керек)</span></label>
-        <input type="text" class="mono" id="pkg" placeholder="com.mysite.app">
+        <label id="pkgLabel" for="pkg">Package ID <span class="hint">(бірегей болуы керек)</span></label>
+        <input type="text" class="mono" id="pkg" placeholder="com.mysite.app" autocomplete="off" spellcheck="false" aria-describedby="pkgErr">
+        <div class="field-err" id="pkgErr">Формат қате. Мысалы: com.mysite.app (кіші латын әріптері, нүктемен бөлінген)</div>
       </div>
       <div class="field">
         <label>Иконка және түс</label>
         <div class="icon-color-row">
-          <div class="icon-upload" id="iconUp">
-            <div class="box">+</div>
-            <div class="t"><div class="a">Иконка</div><div class="b">512×512 PNG</div></div>
+          <div class="icon-upload" id="iconUp" role="button" tabindex="0" aria-label="Иконка жүктеу (PNG)">
+            <div class="box" id="iconBox">+</div>
+            <div class="t"><div class="a" id="iconName">Иконка</div><div class="b" id="iconSub">512×512 PNG</div></div>
           </div>
           <div class="color-pick">
             <div class="swatches">
@@ -387,6 +410,14 @@
             </div>
           </div>
         </div>
+        <div id="iconReq">
+          <label class="zip-icon">
+            <input type="checkbox" id="zipHasIcon">
+            <span class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span>
+            ZIP ішінде <code>icon.png</code> бар
+          </label>
+          <div class="field-warn" id="iconWarn">Иконка жүктеңіз немесе ZIP ішіне icon.png қосыңыз</div>
+        </div>
       </div>
     </div>
   </div>
@@ -396,6 +427,7 @@
       <svg viewBox="0 0 24 24"><path d="M13 3l8 8-9 9H4v-8l9-9z"/><path d="M14 2l6 6"/></svg>
       <span>APK құрастыру</span>
     </button>
+    <div class="build-hint" id="buildHint" aria-live="polite"></div>
   </div>
 
   <div class="console">
@@ -522,8 +554,8 @@
     pkgLabel.innerHTML=c.pkgLabel;
     pkgInput.placeholder=c.pkgPh;
     document.getElementById('resName').textContent=c.result;
+    validate();
   }
-  applyPlatform();
 
   drop.addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',e=>{if(e.target.files[0])setFile(e.target.files[0])});
@@ -535,11 +567,80 @@
     const MB=1024*1024;
     return bytes<MB ? Math.max(1,Math.round(bytes/1024))+' KB' : (bytes/MB).toFixed(2)+' MB';
   }
-  function setFile(f){selectedFile=f;chip.querySelector('.fi').textContent=/\.py$/i.test(f.name)?'PY':'ZIP';document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=formatSize(f.size);chip.classList.add('show');hasFile=true;buildBtn.disabled=false}
-  document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';selectedFile=null;hasFile=false;buildBtn.disabled=true});
+  function setFile(f){selectedFile=f;chip.querySelector('.fi').textContent=/\.py$/i.test(f.name)?'PY':'ZIP';document.getElementById('fname').textContent=f.name;document.getElementById('fsize').textContent=formatSize(f.size);chip.classList.add('show');hasFile=true;validate()}
+  document.getElementById('removeFile').addEventListener('click',e=>{e.stopPropagation();chip.classList.remove('show');fileInput.value='';selectedFile=null;hasFile=false;validate()});
 
   document.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',()=>{document.querySelectorAll('.sw').forEach(s=>s.classList.remove('active'));sw.classList.add('active')}));
-  document.getElementById('iconUp').addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/png';inp.click();inp.onchange=()=>{if(inp.files[0])document.querySelector('#iconUp .a').textContent=inp.files[0].name.slice(0,14)}});
+
+  // ---- иконка: пайдаланушы жүктеген PNG немесе «ZIP ішінде icon.png бар» белгісі ----
+  const MAX_ICON_BYTES=2*1024*1024;                  // сервердегі шекпен бірдей
+  const iconUp=document.getElementById('iconUp');
+  const iconBox=document.getElementById('iconBox');
+  const zipHasIcon=document.getElementById('zipHasIcon');
+  let iconFile=null, iconUrl='';
+  function pickIcon(){
+    const inp=document.createElement('input');inp.type='file';inp.accept='image/png';
+    inp.onchange=()=>{const f=inp.files[0];if(f)setIcon(f)};
+    inp.click();
+  }
+  function setIcon(f){
+    const sub=document.getElementById('iconSub');
+    if(!/\.png$/i.test(f.name)||(f.type&&f.type!=='image/png')){sub.textContent='Тек PNG файл';sub.style.color='var(--danger)';return}
+    if(f.size>MAX_ICON_BYTES){sub.textContent='2 MB-тан аспасын';sub.style.color='var(--danger)';return}
+    sub.style.color='';
+    if(iconUrl)URL.revokeObjectURL(iconUrl);
+    iconFile=f;iconUrl=URL.createObjectURL(f);
+    iconBox.style.backgroundImage='url("'+iconUrl+'")';
+    iconUp.classList.add('has');
+    document.getElementById('iconName').textContent=f.name.length>16?f.name.slice(0,14)+'…':f.name;
+    sub.textContent=formatSize(f.size)+' · ауыстыру';
+    validate();
+  }
+  iconUp.addEventListener('click',pickIcon);
+  iconUp.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();pickIcon()}});
+  zipHasIcon.addEventListener('change',validate);
+
+  // ---- валидация: build батырмасы тек барлық шарт орындалғанда белсенді ----
+  const PKG_RE=/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
+  const appNameInput=document.getElementById('appName');
+  const pkgErr=document.getElementById('pkgErr');
+  const buildHint=document.getElementById('buildHint');
+  let building=false;                                // build жүріп жатқанда батырма өшік қалады
+  const needsIcon=()=>platform!=='python';           // Python .exe иконканы қолданбайды
+  const hasIcon=()=>Boolean(iconFile)||zipHasIcon.checked;
+
+  function validate(){
+    const python=platform==='python';
+    const pkg=pkgInput.value.trim();
+    const pkgBad=!python&&pkg!==''&&!PKG_RE.test(pkg);
+
+    // Package ID қате форматта болса — өріс астында қызыл ескерту (Python entry point-ке қолданылмайды)
+    pkgErr.classList.toggle('show',pkgBad);
+    pkgInput.classList.toggle('invalid',pkgBad);
+    pkgInput.setAttribute('aria-invalid',pkgBad?'true':'false');
+
+    document.getElementById('iconReq').hidden=!needsIcon();
+    document.getElementById('iconWarn').classList.toggle('show',needsIcon()&&hasFile&&!hasIcon());
+
+    const missing=[];
+    if(!selectedFile)missing.push(python?'.py немесе ZIP файл':'ZIP файл');
+    else if(!fileAllowed(selectedFile))missing.push(PLATFORMS[platform].accept.replace(/,/g,' немесе ')+' файл');
+    if(!appNameInput.value.trim())missing.push('қосымша аты');
+    if(!python){
+      const idName=platform==='desktop'?'App ID':'Package ID';
+      if(!pkg)missing.push(idName);
+      else if(pkgBad)missing.push('дұрыс '+idName);
+    }
+    if(needsIcon()&&!hasIcon())missing.push('иконка');
+
+    const ok=missing.length===0;
+    buildBtn.disabled=building||!ok;
+    buildHint.innerHTML=building||ok?'':'Қажет: <b>'+escapeHtml(missing.join(', '))+'</b>';
+    return ok;
+  }
+  appNameInput.addEventListener('input',validate);
+  pkgInput.addEventListener('input',validate);
+  applyPlatform();
 
   const con=document.getElementById('console');
   const st=document.getElementById('cStatus');
@@ -560,15 +661,16 @@
   dlBtn.addEventListener('click',()=>{ if(downloadUrl) window.location.href=downloadUrl });
 
   buildBtn.addEventListener('click',async()=>{
-    if(!hasFile||!selectedFile)return;
+    if(building||!validate())return;
 
     // Android, Desktop және Python — нақты build; басқасы әзірге демо
     if(!REAL_BUILD.includes(platform)){
+      building=true;validate();
       con.innerHTML='';setStatus('running','var(--amber)');
       const steps=PLATFORMS[platform].steps;let i=0;
       (function next(){
         if(i>=steps.length){setStatus('done','var(--ok)');
-          logLine('⚠ бұл платформа әзірге демо режимінде','c-amber');buildBtn.disabled=false;return}
+          logLine('⚠ бұл платформа әзірге демо режимінде','c-amber');building=false;validate();return}
         logLine(steps[i][1],steps[i][2]);i++;setTimeout(next,500+Math.random()*400);
       })();
       return;
@@ -581,20 +683,22 @@
       setStatus('error','var(--danger)');
       return;
     }
-    buildBtn.disabled=true;
+    building=true;validate();
     setStatus('running','var(--amber)');
 
     // деректерді жинау
     const fd=new FormData();
     fd.append('platform',platform);
     fd.append('zip',selectedFile,selectedFile.name);
-    fd.append('appName',document.getElementById('appName').value||'MyApp');
+    fd.append('appName',appNameInput.value.trim());
     if(platform==='python'){
       fd.append('entry',pkgInput.value.trim()); // бос болса сервер main.py-ды өзі табады
     }else{
       // android: Package ID, desktop: Electron App ID
-      fd.append('pkg',pkgInput.value||'com.apkforge.app');
+      fd.append('pkg',pkgInput.value.trim());
       fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
+      // ZIP ішіндегі icon.png/favicon.png басым; жоқ болса сервер осы PNG-ні icon.png етіп қосады
+      if(iconFile)fd.append('icon',iconFile,iconFile.name);
     }
 
     // 1) файлды жіберіп, jobId алу
@@ -606,14 +710,14 @@
       if(!data.ok||!data.jobId){
         logLine('✗ ҚАТЕ: '+data.error,'c-amber');
         setStatus('error','var(--danger)');
-        buildBtn.disabled=false;
+        building=false;validate();
         return;
       }
       jobId=data.jobId;
     }catch(e){
       logLine('✗ Сервермен байланыс үзілді: '+e.message,'c-amber');
       setStatus('error','var(--danger)');
-      buildBtn.disabled=false;
+      building=false;validate();
       return;
     }
 
@@ -675,7 +779,7 @@
   function pollStatus(jobId){
     let shown=0;   // консольге шығарылған лог жолдарының саны
     let fails=0;
-    const finish=()=>{buildBtn.disabled=false};
+    const finish=()=>{building=false;validate()};
 
     const tick=async()=>{
       let data;

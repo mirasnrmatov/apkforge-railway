@@ -103,6 +103,23 @@ jobs:
           [ -f "$WWW/index.html" ] || { echo "::error::ZIP ішінде index.html табылмады"; exit 1; }
           echo "Файлдар саны: $(find "$WWW" -type f | wc -l)"
 
+      - name: Иконканы қою
+        run: |
+          # ZIP ішіндегі icon.png, болмаса favicon.png (сервер жүктелген иконканы icon.png етіп қосады)
+          WWW="$WORK/app/src/main/assets/www"
+          RES="$WORK/app/src/main/res"
+          ICON=""
+          for f in icon.png favicon.png; do [ -f "$WWW/$f" ] && { ICON="$WWW/$f"; break; }; done
+          [ -n "$ICON" ] || { echo "::error::Иконка табылмады (icon.png немесе favicon.png)"; exit 1; }
+          [ "$(head -c 8 "$ICON" | od -An -tx1 | tr -d ' \n')" = "89504e470d0a1a0a" ] \
+            || { echo "::error::$(basename "$ICON") PNG файл емес"; exit 1; }
+          # Adaptive icon (әдепкі белгі) орнына пайдаланушы PNG-сі — барлық Android нұсқасына
+          rm -f "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+          mkdir -p "$RES/mipmap"
+          cp "$ICON" "$RES/mipmap/ic_launcher.png"
+          cp "$ICON" "$RES/mipmap/ic_launcher_round.png"
+          echo "Иконка: $(basename "$ICON")"
+
       - name: Параметрлерді жазу
         run: |
           python3 - <<'PY'

@@ -119,6 +119,10 @@ jobs:
           [ -f "$SRC/index.html" ] || { echo "::error::ZIP ішінде index.html табылмады"; exit 1; }
           echo "Файлдар саны: $(find "$SRC" -type f | wc -l)"
 
+      - name: Иконканы қою
+        working-directory: ${{ runner.temp }}/desktop
+        run: node set-icon.js
+
       - name: Параметрлерді жазу
         working-directory: ${{ runner.temp }}/desktop
         run: node configure.js

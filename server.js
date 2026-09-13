@@ -110,9 +110,34 @@ function exeBaseName(appName) {
   return !n || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(n) ? 'app' : n;
 }
 
-// Android және Desktop үшін ортақ тексеру: package/App ID, түс, ZIP ішінде index.html
-function prepareWebZip({ body, file }) {
-  const pkg = String(body.pkg || 'com.apkforge.app').trim();
+// ---- иконка ----
+// Басымдық: 1) ZIP ішіндегі icon.png / favicon.png  2) пайдаланушы жүктеген PNG  3) жоқ болса — қате
+const ZIP_ICONS = ['icon.png', 'favicon.png'];
+const MAX_ICON_BYTES = 2 * 1024 * 1024;
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+function readPngIcon(iconFile) {
+  if (iconFile.size > MAX_ICON_BYTES) throw new UserError('Иконка тым үлкен (макс. 2 MB)');
+  const data = fs.readFileSync(iconFile.path);
+  if (!data.subarray(0, 8).equals(PNG_MAGIC)) throw new UserError('Иконка PNG форматында болуы керек');
+  return data;
+}
+
+// ZIP-те иконка болмаса, жүктелген PNG-ні түбірге icon.png етіп қосады (жайылатын папка ескеріледі)
+function applyIcon(zipPath, names, iconFile) {
+  const inZip = ZIP_ICONS.find((n) => names.includes(n));
+  if (inZip) return `Иконка: ZIP ішіндегі ${inZip}`;
+  if (!iconFile) throw new UserError('Иконка жүктеңіз немесе ZIP ішіне icon.png қосыңыз');
+  const zip = new AdmZip(zipPath);
+  zip.addFile(names.stripped + 'icon.png', readPngIcon(iconFile));
+  zip.writeZip(zipPath);
+  return 'Иконка: жүктелген PNG (icon.png)';
+}
+
+// Android және Desktop үшін ортақ тексеру: package/App ID, түс, ZIP ішінде index.html, иконка
+function prepareWebZip({ body, file, iconFile }) {
+  const pkg = String(body.pkg || '').trim();
+  if (!pkg) throw new UserError('Package ID жазыңыз (мыс. com.mysite.app)');
   const color = String(body.color || '#3DD4C8').trim();
   if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(pkg)) {
     throw new UserError('Package ID форматы қате (мыс. com.mysite.app)');
@@ -120,10 +145,12 @@ function prepareWebZip({ body, file }) {
   if (!/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) {
     throw new UserError('Түс форматы қате (мыс. #3DD4C8)');
   }
-  if (!zipFileList(file.path).includes('index.html')) {
+  const names = zipFileList(file.path);
+  if (!names.includes('index.html')) {
     throw new UserError('ZIP ішінде index.html табылмады');
   }
-  return { pkg, color };
+  const iconNote = applyIcon(file.path, names, iconFile);
+  return { pkg, color, iconNote };
 }
 
 // ---- платформалар ----
@@ -139,15 +166,17 @@ const PLATFORMS = {
       ...COMMON_HINTS,
       'Параметрлерді тексеру': 'Параметрлер қате (package ID, түс немесе қосымша атауы)',
       'ZIP ашу (assets/www)': 'ZIP бұзық немесе ішінде index.html жоқ',
+      'Иконканы қою': 'Иконка табылмады немесе PNG емес (icon.png / favicon.png)',
       'Параметрлерді жазу': 'Шаблонға параметрлерді жазу сәтсіз',
       'Gradle assembleRelease': 'Gradle build сәтсіз аяқталды',
       'APK-ны сақтау': 'APK файлы табылмады (build мәселесі)',
     },
-    prepare({ body, file, appName }) {
-      const { pkg, color } = prepareWebZip({ body, file });
+    prepare({ body, file, iconFile, appName }) {
+      const { pkg, color, iconNote } = prepareWebZip({ body, file, iconFile });
       return {
         zipPath: file.path,
         inputs: { app_name: appName, package: pkg, color },
+        notes: [iconNote],
         fileName: null,                                // әдепкі: <app>-<jobId>.apk
       };
     },
@@ -206,17 +235,19 @@ const PLATFORMS = {
       'Параметрлерді тексеру': 'Параметрлер қате (App ID, түс немесе бағдарлама атауы)',
       'Node.js 22 орнату': 'Runner-де Node.js орнату сәтсіз (GitHub жағындағы уақытша қате болуы мүмкін)',
       'ZIP ашу (src)': 'ZIP бұзық немесе ішінде index.html жоқ',
+      'Иконканы қою': 'Иконка табылмады немесе PNG емес (icon.png / favicon.png)',
       'Параметрлерді жазу': 'Шаблонға параметрлерді жазу сәтсіз',
       'Тәуелділіктерді орнату (npm ci)': 'Electron тәуелділіктерін орнату сәтсіз',
       'electron-builder --win': 'electron-builder build сәтсіз аяқталды',
       'EXE-ні сақтау': 'Setup .exe файлы табылмады (build мәселесі)',
     },
-    prepare({ body, file, appName }) {
-      const { pkg, color } = prepareWebZip({ body, file });
+    prepare({ body, file, iconFile, appName }) {
+      const { pkg, color, iconNote } = prepareWebZip({ body, file, iconFile });
       const exeName = exeBaseName(appName);                // .exe және орнату папкасының аты
       return {
         zipPath: file.path,
         inputs: { app_name: exeName, package: pkg, color },
+        notes: [iconNote],
         fileName: `${exeName} Setup.exe`,
       };
     },
@@ -317,8 +348,14 @@ function publicBaseUrl(req) {
 }
 
 // ---- негізгі build маршруты: GitHub Actions-ты іске қосып, дереу jobId қайтарады ----
-app.post('/api/build', upload.single('zip'), async (req, res) => {
+const buildUpload = upload.fields([{ name: 'zip', maxCount: 1 }, { name: 'icon', maxCount: 1 }]);
+
+app.post('/api/build', buildUpload, async (req, res) => {
+  req.file = req.files && req.files.zip ? req.files.zip[0] : undefined;
+  const iconFile = req.files && req.files.icon ? req.files.icon[0] : undefined;
+  const removeIcon = () => { if (iconFile) fs.rmSync(iconFile.path, { force: true }); };
   const cleanup = () => {
+    removeIcon();
     if (!req.file) return;
     fs.rmSync(req.file.path, { force: true });
     fs.rmSync(req.file.path + '.zip', { force: true });  // python: оралған .py
@@ -337,15 +374,17 @@ app.post('/api/build', upload.single('zip'), async (req, res) => {
   }
   if (!req.file) return fail(400, platformId === 'python' ? '.py немесе ZIP файл жүктелмеді' : 'ZIP файл жүктелмеді');
 
-  const appName = String(req.body.appName || 'MyApp').trim().slice(0, 50) || 'MyApp';
+  const appName = String(req.body.appName || '').trim().slice(0, 50);
+  if (!appName) return fail(400, 'Қосымша атын жазыңыз');
   let prepared;
   try {
-    prepared = platform.prepare({ body: req.body, file: req.file, appName });
+    prepared = platform.prepare({ body: req.body, file: req.file, iconFile, appName });
   } catch (e) {
     if (e instanceof UserError) return fail(400, e.message);
     console.error(e);
     return fail(500, 'Файлды өңдеу сәтсіз: ' + e.message);
   }
+  removeIcon();                                        // иконка ZIP-ке қосылды (немесе керек емес)
 
   // 2) job жасау + ZIP-ке құпия URL
   const jobId = 'job_' + Date.now() + '_' + crypto.randomBytes(3).toString('hex') + platform.jobSuffix;
@@ -358,6 +397,7 @@ app.post('/api/build', upload.single('zip'), async (req, res) => {
     addLog(job, '⚠ ZIP URL localhost — GitHub runner оған жете алмайды (PUBLIC_BASE_URL орнатыңыз)');
   }
   if (prepared.inputs.entry_point) addLog(job, `Entry point: ${prepared.inputs.entry_point}`);
+  for (const note of prepared.notes || []) addLog(job, note);
 
   // 3) workflow_dispatch
   try {
@@ -602,6 +642,7 @@ app.get('/api/download/:name', (req, res) => {
 
 // ---- multer және басқа қателер JSON түрінде ----
 app.use((err, req, res, next) => {
+  for (const f of Object.values(req.files || {}).flat()) fs.rmSync(f.path, { force: true });
   if (req.file) fs.rmSync(req.file.path, { force: true });
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ ok: false, error: `Файл тым үлкен (макс. ${MAX_ZIP_BYTES / 1024 / 1024} MB)` });
