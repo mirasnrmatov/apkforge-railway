@@ -2,6 +2,7 @@
 // Build Railway-де емес, GitHub Actions runner-де жүреді:
 //   android → .github/workflows/build-apk.yml         (HTML/CSS/JS ZIP → .apk)
 //   python  → .github/workflows/build-exe-python.yml  (.py немесе ZIP → Windows .exe, PyInstaller)
+//   desktop → .github/workflows/build-desktop-electron.yml (HTML/CSS/JS ZIP → Windows Setup .exe, Electron)
 //   1) /api/build файлды уақытша сақтап, оған құпия URL жасайды да, workflow_dispatch жібереді
 //   2) сервер фонда run күйін бақылайды (run-name ішінде jobId бар)
 //   3) run сәтті аяқталса, artifact-ты жүктеп, /api/download арқылы береді
@@ -109,6 +110,22 @@ function exeBaseName(appName) {
   return !n || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(n) ? 'app' : n;
 }
 
+// Android және Desktop үшін ортақ тексеру: package/App ID, түс, ZIP ішінде index.html
+function prepareWebZip({ body, file }) {
+  const pkg = String(body.pkg || 'com.apkforge.app').trim();
+  const color = String(body.color || '#3DD4C8').trim();
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(pkg)) {
+    throw new UserError('Package ID форматы қате (мыс. com.mysite.app)');
+  }
+  if (!/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) {
+    throw new UserError('Түс форматы қате (мыс. #3DD4C8)');
+  }
+  if (!zipFileList(file.path).includes('index.html')) {
+    throw new UserError('ZIP ішінде index.html табылмады');
+  }
+  return { pkg, color };
+}
+
 // ---- платформалар ----
 // prepare(): сұранысты тексеріп, runner-ге жіберілетін ZIP пен workflow параметрлерін қайтарады
 const PLATFORMS = {
@@ -127,17 +144,7 @@ const PLATFORMS = {
       'APK-ны сақтау': 'APK файлы табылмады (build мәселесі)',
     },
     prepare({ body, file, appName }) {
-      const pkg = String(body.pkg || 'com.apkforge.app').trim();
-      const color = String(body.color || '#3DD4C8').trim();
-      if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(pkg)) {
-        throw new UserError('Package ID форматы қате (мыс. com.mysite.app)');
-      }
-      if (!/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) {
-        throw new UserError('Түс форматы қате (мыс. #3DD4C8)');
-      }
-      if (!zipFileList(file.path).includes('index.html')) {
-        throw new UserError('ZIP ішінде index.html табылмады');
-      }
+      const { pkg, color } = prepareWebZip({ body, file });
       return {
         zipPath: file.path,
         inputs: { app_name: appName, package: pkg, color },
@@ -184,6 +191,33 @@ const PLATFORMS = {
         zipPath,
         inputs: { app_name: exeName, entry_point: entry },
         fileName: `${exeName}.exe`,
+      };
+    },
+  },
+
+  desktop: {
+    workflow: process.env.GITHUB_DESKTOP_WORKFLOW_FILE || 'build-desktop-electron.yml',
+    runTitle: 'Desktop build',
+    jobSuffix: '_desk',
+    artifact: 'desktop',
+    ext: '.exe',
+    stepHints: {
+      ...COMMON_HINTS,
+      'Параметрлерді тексеру': 'Параметрлер қате (App ID, түс немесе бағдарлама атауы)',
+      'Node.js 22 орнату': 'Runner-де Node.js орнату сәтсіз (GitHub жағындағы уақытша қате болуы мүмкін)',
+      'ZIP ашу (src)': 'ZIP бұзық немесе ішінде index.html жоқ',
+      'Параметрлерді жазу': 'Шаблонға параметрлерді жазу сәтсіз',
+      'Тәуелділіктерді орнату (npm ci)': 'Electron тәуелділіктерін орнату сәтсіз',
+      'electron-builder --win': 'electron-builder build сәтсіз аяқталды',
+      'EXE-ні сақтау': 'Setup .exe файлы табылмады (build мәселесі)',
+    },
+    prepare({ body, file, appName }) {
+      const { pkg, color } = prepareWebZip({ body, file });
+      const exeName = exeBaseName(appName);                // .exe және орнату папкасының аты
+      return {
+        zipPath: file.path,
+        inputs: { app_name: exeName, package: pkg, color },
+        fileName: `${exeName} Setup.exe`,
       };
     },
   },
@@ -372,11 +406,12 @@ app.get('/api/status/:jobId', (req, res) => {
 // Сервер қайта қосылса (мыс. Railway redeploy), жадтағы job-тар жоғалады.
 // jobId run-name ішінде болғандықтан, run-ды GitHub-тан қайта тауып, бақылауды жалғастырамыз.
 function recoverJob(jobId) {
-  const m = /^job_(\d{13})_[0-9a-f]{6}(_py)?$/.exec(jobId);
+  const m = /^job_(\d{13})_[0-9a-f]{6}(_py|_desk)?$/.exec(jobId);
   if (!m || !ghConfigured() || jobs.size > 500) return null;
   const dispatchedAt = Number(m[1]);
   if (Date.now() - dispatchedAt > BUILD_TIMEOUT_MS || dispatchedAt > Date.now()) return null;
-  const job = newJob(jobId, { dispatchedAt, platform: m[2] ? 'python' : 'android' });
+  const platform = Object.keys(PLATFORMS).find((id) => PLATFORMS[id].jobSuffix === (m[2] || ''));
+  const job = newJob(jobId, { dispatchedAt, platform });
   addLog(job, 'Сервер қайта қосылды — GitHub run ізделуде...');
   monitor(job);
   return job;

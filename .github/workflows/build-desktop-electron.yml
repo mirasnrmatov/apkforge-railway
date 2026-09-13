@@ -1,0 +1,143 @@
+# APKForge — HTML/CSS/JS ZIP-тен Windows .exe (Electron + electron-builder, NSIS installer).
+# Railway сервері бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
+# сосын run-ды run-name ішіндегі job_id бойынша тауып, күйін бақылайды.
+# Қадам атауларын өзгертсеңіз, server.js ішіндегі stepHints-ті де жаңартыңыз.
+#
+# Әзірге тек Windows (macOS минуты Windows-тан ~10× қымбат).
+# macOS/Linux керек болса: runs-on-ды matrix-ке ауыстырып, electron-template/package.json
+# ішіне "mac"/"linux" конфигін қосыңыз (толығырақ README-де).
+
+name: Build Desktop (Electron)
+
+run-name: "Desktop build ${{ inputs.job_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "APKForge job ID (серверден келеді, мыс. job_1789131361951_a1b2c3_desk)"
+        required: true
+        type: string
+      zip_url:
+        description: "Сайт ZIP файлының public URL-і"
+        required: true
+        type: string
+      app_name:
+        description: "Бағдарлама атауы"
+        required: true
+        default: "MyApp"
+        type: string
+      package:
+        description: "App ID (мыс. com.mysite.app)"
+        required: true
+        default: "com.apkforge.app"
+        type: string
+      color:
+        description: "Тема түсі (мыс. #3DD4C8)"
+        required: true
+        default: "#3DD4C8"
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Input-тар скриптке тек env арқылы беріледі (script injection-нан қорғау)
+    env:
+      JOB_ID: ${{ inputs.job_id }}
+      ZIP_URL: ${{ inputs.zip_url }}
+      APP_NAME: ${{ inputs.app_name }}
+      APP_ID: ${{ inputs.package }}
+      THEME_COLOR: ${{ inputs.color }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"          # code signing сертификаты жоқ
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"            # electron-builder Electron-ды өзі жүктейді
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+
+    steps:
+      - name: Параметрлерді тексеру
+        run: |
+          echo "::add-mask::$ZIP_URL"
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$JOB_ID" =~ ^job_[A-Za-z0-9_]+$ ]]                        || fail "job_id форматы қате"
+          [[ "$ZIP_URL" =~ ^https?:// ]]                                 || fail "zip_url http(s) болуы керек"
+          [[ "$APP_ID" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]       || fail "App ID форматы қате (мыс. com.mysite.app)"
+          [[ "$THEME_COLOR" =~ ^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$ ]]     || fail "Түс форматы қате (мыс. #3DD4C8)"
+          # Бағдарлама атауы .exe және орнату папкасының атына айналады
+          [[ -n "${APP_NAME// }" && ${#APP_NAME} -le 50 ]]               || fail "Бағдарлама атауы бос немесе 50 таңбадан ұзын"
+          [[ "$APP_NAME" != *[\<\>:\"/\\\|\?\*]* && "$APP_NAME" != *[[:cntrl:]]* ]] \
+                                                                         || fail "Бағдарлама атауында < > : \" / \\ | ? * таңбалары болмауы керек"
+          echo "WORK=$(cygpath -u "$RUNNER_TEMP")/desktop" >> "$GITHUB_ENV"
+          echo "ZIP_FILE=$(cygpath -u "$RUNNER_TEMP")/site.zip" >> "$GITHUB_ENV"
+
+      - name: Репозиторийді алу
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: electron-template
+
+      - name: Node.js 22 орнату
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"   # electron 44 Node >= 22.12 талап етеді
+          cache: npm
+          cache-dependency-path: electron-template/package-lock.json
+
+      - name: Шаблонды көшіру
+        run: cp -r electron-template "$WORK"
+
+      - name: ZIP жүктеу
+        run: |
+          curl -fsSL --retry 3 --retry-delay 3 --max-time 180 \
+            --max-filesize 104857600 -o "$ZIP_FILE" "$ZIP_URL"
+          ls -l "$ZIP_FILE"
+
+      - name: ZIP ашу (src)
+        run: |
+          SRC="$WORK/src"
+          rm -rf "$SRC" && mkdir -p "$SRC"
+          7z x -y -bd -o"$SRC" "$ZIP_FILE" > /dev/null || { echo "::error::ZIP файл бұзық"; exit 1; }
+          rm -rf "$SRC/__MACOSX" "$SRC/.DS_Store"
+
+          # ZIP ішінде бір ғана папка болса — оны жайып жіберу
+          shopt -s dotglob nullglob
+          items=("$SRC"/*)
+          if [ ${#items[@]} -eq 1 ] && [ -d "${items[0]}" ]; then
+            tmp="$WORK-inner"
+            mv "${items[0]}" "$tmp"
+            mv "$tmp"/* "$SRC"/
+            rmdir "$tmp"
+          fi
+
+          [ -f "$SRC/index.html" ] || { echo "::error::ZIP ішінде index.html табылмады"; exit 1; }
+          echo "Файлдар саны: $(find "$SRC" -type f | wc -l)"
+
+      - name: Параметрлерді жазу
+        working-directory: ${{ runner.temp }}/desktop
+        run: node configure.js
+
+      - name: Тәуелділіктерді орнату (npm ci)
+        working-directory: ${{ runner.temp }}/desktop
+        run: npm ci
+
+      - name: electron-builder --win
+        working-directory: ${{ runner.temp }}/desktop
+        run: |
+          npx electron-builder --win --x64 --publish never
+          ls -l dist
+
+      - name: EXE-ні сақтау
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop
+          path: ${{ runner.temp }}/desktop/dist/app-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

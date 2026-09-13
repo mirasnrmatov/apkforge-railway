@@ -5,9 +5,8 @@
 | Платформа | Не жүктейсіз | Не аласыз | Workflow |
 |---|---|---|---|
 | **Android** | HTML/CSS/JS сайт ZIP-і (ішінде `index.html`) | `.apk` | `build-apk.yml` (Ubuntu, Gradle) |
+| **Desktop** | HTML/CSS/JS сайт ZIP-і (ішінде `index.html`) | Windows Setup `.exe` | `build-desktop-electron.yml` (Windows, Electron) |
 | **Python** | Жалғыз `.py` файл немесе ZIP (`.py` файлдар + `requirements.txt`) | Windows `.exe` | `build-exe-python.yml` (Windows, PyInstaller) |
-
-Интерфейстегі **Desktop** платформасы әзірге демо режимінде.
 
 ## Архитектура
 
@@ -16,21 +15,23 @@ Build Railway-де емес, **GitHub Actions**-та жүреді. Railway-де�
 
 ```
 Браузер ──файл──▶ Railway (server.js) ──workflow_dispatch──▶ GitHub Actions
-   ▲                  │   ▲                                   (build-apk.yml / build-exe-python.yml)
+   ▲                  │   ▲                                   (build-apk / build-desktop-electron / build-exe-python)
    │   /api/status    │   └──── runner ZIP-ті /api/zip/<token> ────┘
    │   (3 сек polling)│         арқылы жүктеп алады
    │                  ▼
    └── /api/download ◀── сервер дайын APK/EXE artifact-ты GitHub-тан жүктеп алады
 ```
 
-1. **`POST /api/build`** (`platform` = `android` | `python`): сервер файлды тексереді де,
-   `uploads/` ішіне уақытша сақтайды. Android үшін `index.html`, package ID мен түс тексеріледі.
+1. **`POST /api/build`** (`platform` = `android` | `desktop` | `python`): сервер файлды тексереді де,
+   `uploads/` ішіне уақытша сақтайды. Android мен Desktop үшін `index.html`, package/App ID мен түс тексеріледі.
    Python үшін `.py` файлдар мен entry point тексеріледі. Жалғыз `.py` келсе, сервер оны өзі ZIP-ке орайды.
    Сервер ZIP-ке болжау мүмкін емес құпия сілтеме жасайды (`/api/zip/<48 таңбалы токен>`),
    сәйкес workflow-ды GitHub API арқылы іске қосады және бірден `{ jobId }` қайтарады.
 2. **GitHub Actions** ZIP-ті жүктеп алады да, build жасайды:
    - **Android:** `template/` шаблонына салып, атауды, package ID мен түсті жазады, `./gradlew assembleRelease`
      жасайды, нәтижені `apk` деген artifact ретінде сақтайды.
+   - **Desktop:** `electron-template/` шаблонының `src/` ішіне салып, `node configure.js` арқылы атауды, App ID мен
+     түсті жазады, `npm ci` және `electron-builder --win --publish never` жасайды, NSIS installer-ді `desktop` деген artifact ретінде сақтайды.
    - **Python:** Python 3.11 орнатады, `requirements.txt` болса `pip install -r` жасайды, сосын
      `pyinstaller --onefile --name <атау> <entry point>` орындап, нәтижені `exe` деген artifact ретінде сақтайды.
    Artifact 1 күн сақталады.
@@ -40,12 +41,30 @@ Build Railway-де емес, **GitHub Actions**-та жүреді. Railway-де�
    қайтарады. Фронтенд оны әр 3 секунд сайын сұрайды.
 
 > **jobId туралы.** GitHub-тың `workflow_dispatch` API-і run ID-ін қайтармайды. Сондықтан сервер
-> өз `jobId`-ін жасап, оны run атауына қосады (`APK build <jobId>` немесе `EXE build <jobId>`),
-> сосын run-ды осы атау бойынша табады. Python job-тарының ID-і `_py` деп аяқталады. Сервер қайта
+> өз `jobId`-ін жасап, оны run атауына қосады (`APK build <jobId>`, `Desktop build <jobId>` немесе `EXE build <jobId>`),
+> сосын run-ды осы атау бойынша табады. Python job-тарының ID-і `_py`, Desktop-тікі `_desk` деп аяқталады. Сервер қайта
 > іске қосылса да (мысалы, Railway redeploy), `/api/status` run-ды GitHub-тан қайта тауып, бақылауды жалғастырады.
 
-Бір build әдетте: **Android 3–6 минут**, **Python 2–5 минут** (тәуелділіктерге байланысты).
+Бір build әдетте: **Android 3–6 минут**, **Desktop 3–5 минут**, **Python 2–5 минут** (тәуелділіктерге байланысты).
 Бірінші Android build ұзағырақ жүреді, себебі Gradle кэші әлі жоқ.
+
+## Desktop (Electron) → .exe
+
+- **ZIP:** ішінде міндетті түрде `index.html` болуы керек (мыс. `apkforge-app-full.zip` тәрізді толық жоба).
+  ZIP ішінде бір ғана папка болса, ол жайылады. Сайт `src/` ішіне салынып, `loadFile('src/index.html')` арқылы ашылады.
+- **App ID:** интерфейстегі «App ID» өрісі (мыс. `com.mysite.app`), electron-builder `appId` ретінде қолданылады.
+- **Атауы:** «Қосымша аты» өрісі — бағдарлама мен орнату папкасының аты. Жүктелетін файл: `<атау> Setup.exe`.
+- **Иконка:** ZIP түбірінде `icon.png` немесе `favicon.png` болса, терезе иконкасы болады (әйтпесе Electron иконкасы).
+- Терезе 1280×800, мәзір жолағы жоқ, сыртқы `http(s)` сілтемелер жүйелік браузерде ашылады.
+  Пайдаланушы коды Node API-ға қол жеткізбейді (`contextIsolation`, `sandbox`).
+- Installer өлшемі ~110 MB (ішінде Electron/Chromium бар). Code signing жоқ, сондықтан Windows SmartScreen ескерту көрсетуі мүмкін.
+
+> **macOS / Linux әзірге жоқ** — macOS runner минуты Windows-тан ~10× қымбат. Керек болса:
+> 1. `build-desktop-electron.yml` ішінде `runs-on: windows-latest` орнына
+>    `strategy.matrix.os: [windows-latest, macos-latest, ubuntu-latest]` және `runs-on: ${{ matrix.os }}` қойыңыз;
+> 2. `electron-template/package.json` → `build` ішіне `"mac": { "target": ["dmg"] }` және `"linux": { "target": ["AppImage"] }` қосыңыз;
+> 3. `--win --x64` орнына платформаға сай флагты, macOS/Linux-та `7z` орнына `unzip` қолданып, artifact атын `desktop-<os>` етіңіз;
+> 4. `server.js`-те `.dmg` / `.AppImage` artifact-тарын қабылдаңыз.
 
 ## Python → .exe
 
@@ -78,7 +97,7 @@ Workflow GitHub-тағы **`main`** branch-те болуы керек, әйтп�
 
 Репозиторий → **Settings** → **Actions** → **General** → *Actions permissions* бөлімінде
 **Allow all actions and reusable workflows** таңдалған болуы керек. Workflow-лар тек GitHub-тың
-ресми action-дарын қолданады: `actions/checkout`, `actions/setup-java`, `actions/setup-python`,
+ресми action-дарын қолданады: `actions/checkout`, `actions/setup-java`, `actions/setup-node`, `actions/setup-python`,
 `actions/upload-artifact`.
 
 ### 3. GitHub Personal Access Token жасау
@@ -125,6 +144,7 @@ GITHUB_REPO_NAME=apkforge-railway
 |---|---|---|
 | `GITHUB_BRANCH` | `main` | Workflow қай branch-тен іске қосылады |
 | `GITHUB_WORKFLOW_FILE` | `build-apk.yml` | Android workflow файлының аты |
+| `GITHUB_DESKTOP_WORKFLOW_FILE` | `build-desktop-electron.yml` | Desktop workflow файлының аты |
 | `GITHUB_PYTHON_WORKFLOW_FILE` | `build-exe-python.yml` | Python workflow файлының аты |
 | `PUBLIC_BASE_URL` | `https://$RAILWAY_PUBLIC_DOMAIN` | Runner ZIP-ті жүктейтін сервер адресі. Өз доменіңіз болса орнатыңыз, мыс. `https://apkforge.kz` |
 
@@ -140,11 +160,12 @@ GitHub runner ZIP-ті интернет арқылы жүктейді, сонд�
 
 1. Railway → сервис → **Deployments** → **View logs** ашыңыз. Мына жол көрінуі керек:
    `Build: GitHub Actions — mirasnrmatov/apkforge-railway @ main`, оның астында
-   `android: build-apk.yml` және `python: build-exe-python.yml`.
+   `android: build-apk.yml`, `python: build-exe-python.yml` және `desktop: build-desktop-electron.yml`.
    Оның орнына `⚠ GITHUB_TOKEN ... орнатылмаған` шықса, 4-қадамды тексеріңіз.
 2. Сайтты ашып, Android таңдап, `index.html` бар ZIP жүктеп, **APK құрастыру** басыңыз.
-3. Python таңдап, `print("Сәлем")` деген жалғыз `.py` файл жүктеп, **.exe құрастыру** басыңыз.
-4. Консольде `GitHub Actions run: https://github.com/...` сілтемесі шығады. Build-ті GitHub-тағы
+3. Desktop таңдап, `index.html` бар ZIP жүктеп, **.exe құрастыру** басыңыз.
+4. Python таңдап, `print("Сәлем")` деген жалғыз `.py` файл жүктеп, **.exe құрастыру** басыңыз.
+5. Консольде `GitHub Actions run: https://github.com/...` сілтемесі шығады. Build-ті GitHub-тағы
    **Actions** бетінен де көруге болады.
 
 ---
@@ -160,6 +181,7 @@ GitHub runner ZIP-ті интернет арқылы жүктейді, сонд�
 | `GitHub Actions run табылмады` | Actions өшірулі (2-қадам) немесе GitHub Actions уақытша істемей тұр |
 | `Runner ZIP файлды жүктей алмады` | Railway public домені жоқ (5-қадам) немесе `PUBLIC_BASE_URL` қате |
 | `Gradle build сәтсіз аяқталды` | Қатенің толық логы көрсетілген GitHub сілтемесінде |
+| `electron-builder build сәтсіз аяқталды` | Толық лог GitHub сілтемесінде |
 | `Entry point көрсетіңіз ...` | ZIP-те `main.py` жоқ және бірнеше `.py` бар. «Негізгі скрипт» өрісіне жазыңыз |
 | `requirements.txt ішіндегі пакеттерді орнату сәтсіз` | Пакет аты/нұсқасы қате немесе Windows-та орнатылмайды. Толық лог GitHub сілтемесінде |
 | `PyInstaller build сәтсіз аяқталды` | Скриптте синтаксис қатесі немесе PyInstaller қолдамайтын пакет. Толық лог GitHub сілтемесінде |
@@ -168,7 +190,7 @@ GitHub runner ZIP-ті интернет арқылы жүктейді, сонд�
 
 - **GitHub Actions минуттары:** жабық репозиторийде Free тарифте айына 2000 минут бар.
   Бір Android build шамамен 3–6 минут. **Windows runner минуттары 2 есе есептеледі**,
-  яғни 3 минуттық Python build 6 минут болып саналады.
+  яғни 3 минуттық Python немесе Desktop build 6 минут болып саналады.
 - **Python build қауіпсіздігі:** `requirements.txt` ішіндегі пакеттер runner-де орнатылады,
   яғни бөтен код орындалады. Сондықтан Python workflow-ның job токенінде ешқандай рұқсат жоқ
   (`permissions: {}`), репозиторий checkout жасалмайды, secret-тер берілмейді. Runner build
@@ -200,5 +222,7 @@ GitHub runner `localhost`-қа жете алмайды. Жергілікті т�
 | `public/index.html` | Веб-интерфейс |
 | `.github/workflows/build-apk.yml` | APK құрастыратын GitHub Actions workflow |
 | `.github/workflows/build-exe-python.yml` | Python-нан Windows .exe құрастыратын workflow |
+| `.github/workflows/build-desktop-electron.yml` | HTML/CSS/JS-тен Windows Setup .exe құрастыратын Electron workflow |
+| `electron-template/` | Electron шаблоны: `main.js`, `configure.js`, `src/`, `package.json` (`__APP_NAME__`, `__APP_ID__`, `__VERSION__`, `__DESCRIPTION__`, `__THEME_COLOR__` токендері) |
 | `template/` | Android WebView шаблоны (`__APP_NAME__`, `__APPLICATION_ID__`, `__THEME_COLOR__` токендері) |
 | `Dockerfile` | Railway үшін жеңіл Node.js контейнері |

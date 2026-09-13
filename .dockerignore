@@ -7,3 +7,4 @@ uploads
 # build GitHub Actions-та жүреді — контейнерге шаблон мен workflow керек емес
 template
 .github
+electron-template

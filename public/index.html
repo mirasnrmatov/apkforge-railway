@@ -260,8 +260,8 @@
       <span class="check">✓</span>
       <div class="p-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#3DD4C8" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
       <div class="p-name">Desktop</div>
-      <span class="p-out">.exe · .dmg</span>
-      <div class="p-desc">Windows, macOS, Linux</div>
+      <span class="p-out">.exe</span>
+      <div class="p-desc">Windows (Electron)</div>
     </div>
     <div class="plat" data-p="python">
       <span class="check">✓</span>
@@ -363,17 +363,16 @@
       pkgLabel:'Package ID <span class="hint">(бірегей болуы керек)</span>',pkgPh:'com.mysite.app',
       result:'app-release.apk · 3.2 MB',
       steps:[['00:00','ZIP файл ашылуда...','c-muted'],['00:01','index.html табылды ✓','c-ok'],['00:02','WebView шаблоны дайындалуда','c-accent'],['00:05','gradle assembleRelease орындалуда...','c-amber'],['00:14','APK қол қойылды (signed) ✓','c-ok'],['00:15','BUILD SUCCESSFUL — app-release.apk','c-ok']]},
-    desktop:{accept:'.zip',fileHint:'ZIP',btn:'Бағдарлама құрастыру',
-      pkgLabel:'App ID',pkgPh:'com.mysite.app',
-      result:'app-setup.exe · 58 MB',
-      steps:[['00:00','ZIP файл ашылуда...','c-muted'],['00:01','index.html табылды ✓','c-ok'],['00:02','Electron қабығы дайындалуда','c-accent'],['00:06','electron-builder орындалуда...','c-amber'],['00:24','Windows/Mac/Linux нұсқалары жиналды ✓','c-ok'],['00:25','BUILD SUCCESSFUL — app-setup.exe','c-ok']]},
+    desktop:{accept:'.zip',fileHint:'ZIP',btn:'.exe құрастыру',
+      pkgLabel:'App ID <span class="hint">(мыс. com.mysite.app)</span>',pkgPh:'com.mysite.app',
+      result:'MyApp Setup.exe · 110 MB'},
     python:{accept:'.py,.zip',fileHint:'PY',btn:'.exe құрастыру',
       pkgLabel:'Негізгі скрипт <span class="hint">(entry point)</span>',pkgPh:'main.py',
       result:'main.exe · 12 MB',
       steps:[['00:00','Скрипт оқылуда...','c-muted'],['00:01','main.py табылды ✓','c-ok'],['00:02','тәуелділіктер талданды','c-accent'],['00:04','pyinstaller --onefile орындалуда...','c-amber'],['00:16','бір файлдық .exe жиналды ✓','c-ok'],['00:17','BUILD SUCCESSFUL — main.exe','c-ok']]},
   };
   let platform='android';
-  const REAL_BUILD=['android','python']; // нақты build бар платформалар; қалғаны демо
+  const REAL_BUILD=['android','desktop','python']; // нақты build бар платформалар; қалғаны демо
   const fieldValues={}; // package ID / entry point өрісі әр платформа үшін бөлек сақталады
 
   document.querySelectorAll('.plat').forEach(p=>{
@@ -438,7 +437,7 @@
   buildBtn.addEventListener('click',async()=>{
     if(!hasFile||!selectedFile)return;
 
-    // Android және Python — нақты build; басқасы әзірге демо
+    // Android, Desktop және Python — нақты build; басқасы әзірге демо
     if(!REAL_BUILD.includes(platform)){
       con.innerHTML='';setStatus('running','var(--amber)');
       const steps=PLATFORMS[platform].steps;let i=0;
@@ -468,6 +467,7 @@
     if(platform==='python'){
       fd.append('entry',pkgInput.value.trim()); // бос болса сервер main.py-ды өзі табады
     }else{
+      // android: Package ID, desktop: Electron App ID
       fd.append('pkg',pkgInput.value||'com.apkforge.app');
       fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
     }

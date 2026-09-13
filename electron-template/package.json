@@ -1,0 +1,42 @@
+{
+  "name": "apkforge-desktop",
+  "productName": "__APP_NAME__",
+  "version": "__VERSION__",
+  "description": "__DESCRIPTION__",
+  "author": "APKForge",
+  "main": "main.js",
+  "private": true,
+  "apkforge": {
+    "themeColor": "__THEME_COLOR__"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "__APP_ID__",
+    "productName": "__APP_NAME__",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "src/**/*"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "app-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
