@@ -59,7 +59,7 @@
     background:rgba(10,12,17,.7);backdrop-filter:blur(16px) saturate(140%);
     border-bottom:1px solid var(--border);
   }
-  .logo{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk';font-weight:700;font-size:19px;letter-spacing:-.02em}
+  .logo{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:700;font-size:19px;letter-spacing:-.02em}
   .logo .mark{
     width:34px;height:34px;border-radius:10px;background:var(--grad);
     display:grid;place-items:center;color:#07090d;font-weight:700;font-size:17px;
@@ -87,7 +87,7 @@
   .badge .live{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 2s ease-in-out infinite}
   @keyframes pulse{50%{opacity:.4}}
   h1{
-    font-family:'Space Grotesk';font-weight:700;letter-spacing:-.035em;
+    font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:700;letter-spacing:-.035em;
     font-size:clamp(38px,7vw,68px);line-height:1.02;margin-bottom:20px;
   }
   h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -121,7 +121,7 @@
     display:grid;place-items:center;
   }
   .plat .p-ico svg{width:28px;height:28px}
-  .plat .p-name{font-family:'Space Grotesk';font-weight:600;font-size:17px;margin-bottom:5px}
+  .plat .p-name{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:17px;margin-bottom:5px}
   .plat .p-out{display:inline-block;font-family:'JetBrains Mono';font-size:11.5px;color:var(--accent-2);background:rgba(61,212,200,.1);padding:2px 8px;border-radius:6px;margin-bottom:9px}
   .plat .p-desc{font-size:13px;color:var(--muted)}
 
@@ -132,7 +132,7 @@
     background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius);padding:24px;position:relative;
   }
-  .panel-title{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk';font-weight:600;font-size:15px;margin-bottom:18px;color:var(--muted)}
+  .panel-title{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:15px;margin-bottom:18px;color:var(--muted)}
   .panel-title .n{width:24px;height:24px;border-radius:7px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;font-size:12px;color:var(--accent-2);font-family:'JetBrains Mono'}
 
   /* dropzone */
@@ -188,7 +188,7 @@
   .build-bar{margin:26px 0 18px}
   .btn-build{
     width:100%;display:flex;align-items:center;justify-content:center;gap:11px;position:relative;overflow:hidden;
-    background:var(--grad);color:#07090d;font-weight:700;font-size:16px;font-family:'Space Grotesk';
+    background:var(--grad);color:#07090d;font-weight:700;font-size:16px;font-family:'Space Grotesk','Inter',system-ui,sans-serif;
     border:none;border-radius:var(--radius);padding:17px;cursor:pointer;transition:.2s;
     box-shadow:0 10px 30px -8px rgba(61,212,200,.45);
   }
@@ -221,10 +221,102 @@
   .result.show{display:flex;animation:rise .4s both}
   .result .badge2{width:50px;height:50px;border-radius:14px;background:var(--grad);display:grid;place-items:center;color:#07090d;font-size:24px;font-weight:800;flex-shrink:0;box-shadow:0 8px 24px -6px rgba(61,212,200,.5)}
   .result .info{flex:1;min-width:0}
-  .result .info .h{font-family:'Space Grotesk';font-weight:600;font-size:17px}
+  .result .info .h{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:17px}
   .result .info .s{color:var(--muted);font-size:13px;font-family:'JetBrains Mono';margin-top:3px}
   .btn-dl{background:var(--text);border:none;color:#0A0C11;font-weight:600;font-size:14px;padding:12px 22px;border-radius:var(--radius-sm);cursor:pointer;transition:.15s;white-space:nowrap}
   .btn-dl:hover{background:#fff;transform:translateY(-1px)}
+
+  /* hero: badge + AI батырмасы */
+  .hero-row{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+  .hero-row .badge{margin-bottom:0}
+  .btn-ai{
+    display:inline-flex;align-items:center;gap:8px;font:600 13px 'Inter';color:var(--text);cursor:pointer;
+    padding:6px 15px 6px 7px;border-radius:100px;transition:.2s;
+    border:1px solid transparent;
+    background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(135deg,rgba(61,212,200,.55),rgba(139,124,246,.55)) border-box;
+  }
+  .btn-ai .spark{width:22px;height:22px;border-radius:50%;background:var(--grad);display:grid;place-items:center}
+  .btn-ai .spark svg{width:12px;height:12px;fill:#07090d}
+  .btn-ai:hover{transform:translateY(-1px);box-shadow:0 8px 24px -8px rgba(139,124,246,.55)}
+  .btn-ai:focus-visible,.btn-ghost:focus-visible,.btn-copy:focus-visible,.ex-dl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* examples */
+  .examples{margin:-18px 0 44px;animation:rise .7s .08s cubic-bezier(.2,.7,.2,1) both;scroll-margin-top:90px}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .sec-head h2{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.01em}
+  .sec-head p{color:var(--muted);font-size:13px}
+  .ex-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:900px){.ex-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.ex-grid{grid-template-columns:1fr}}
+  .ex{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;
+    display:flex;flex-direction:column;gap:12px;transition:.22s cubic-bezier(.2,.7,.2,1);
+  }
+  .ex:hover{border-color:var(--border-2);transform:translateY(-3px);box-shadow:0 16px 40px -14px rgba(0,0,0,.6)}
+  .ex-top{display:flex;align-items:center;justify-content:space-between}
+  .ex-emoji{width:40px;height:40px;border-radius:11px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;font-size:19px}
+  .ex-tag{font-family:'JetBrains Mono';font-size:11px;padding:2px 8px;border-radius:6px;color:var(--accent-2);background:rgba(61,212,200,.1)}
+  .ex-tag.py{color:var(--violet);background:rgba(139,124,246,.12)}
+  .ex h3{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:16px}
+  .ex p{color:var(--muted);font-size:13px;flex:1}
+  .ex-dl{
+    display:flex;align-items:center;justify-content:center;gap:7px;width:100%;cursor:pointer;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    font:500 13px 'Inter';padding:9px 12px;border-radius:var(--radius-sm);transition:.15s;
+  }
+  .ex-dl svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+  .ex-dl:hover{border-color:var(--accent);color:var(--accent-2)}
+
+  /* modal */
+  .modal{
+    position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;
+    background:rgba(5,7,10,.55);backdrop-filter:blur(10px) saturate(120%);-webkit-backdrop-filter:blur(10px) saturate(120%);
+    opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s;
+  }
+  .modal.open{opacity:1;visibility:visible}
+  .modal-card{
+    width:min(680px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;
+    background:linear-gradient(var(--bg-2),var(--bg-2)) padding-box,linear-gradient(135deg,rgba(61,212,200,.35),rgba(255,255,255,.06) 40%,rgba(139,124,246,.35)) border-box;
+    border:1px solid transparent;border-radius:20px;padding:26px;
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.8);
+    transform:translateY(14px) scale(.98);transition:transform .25s cubic-bezier(.2,.7,.2,1);
+  }
+  .modal.open .modal-card{transform:none}
+  .modal-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .modal-head .spark{width:36px;height:36px;border-radius:11px;background:var(--grad);display:grid;place-items:center;flex-shrink:0}
+  .modal-head .spark svg{width:18px;height:18px;fill:#07090d}
+  .modal-head h2{font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-weight:600;font-size:20px;letter-spacing:-.01em}
+  .modal-x{margin-left:auto;background:none;border:none;color:var(--faint);font-size:24px;line-height:1;cursor:pointer;padding:2px 8px;border-radius:8px}
+  .modal-x:hover{color:var(--text);background:var(--glass)}
+  .modal-intro{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:16px}
+  .modal textarea{
+    width:100%;flex:1;min-height:260px;resize:vertical;
+    background:#080A0E;border:1px solid var(--border);border-radius:var(--radius-sm);
+    color:#C9CED8;font:400 12.5px/1.65 'JetBrains Mono',monospace;padding:14px 16px;
+  }
+  .modal textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(61,212,200,.14)}
+  .modal textarea::-webkit-scrollbar{width:8px}.modal textarea::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:4px}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+  .btn-ghost{background:transparent;border:1px solid var(--border-2);color:var(--text);font:500 14px 'Inter';padding:11px 20px;border-radius:var(--radius-sm);cursor:pointer;transition:.15s}
+  .btn-ghost:hover{background:var(--glass);border-color:rgba(255,255,255,.2)}
+  .btn-copy{
+    display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;
+    background:var(--grad);color:#07090d;font:700 14px 'Space Grotesk','Inter',system-ui,sans-serif;padding:11px 22px;border-radius:var(--radius-sm);
+    box-shadow:0 8px 24px -8px rgba(61,212,200,.5);transition:.2s;
+  }
+  .btn-copy svg{width:16px;height:16px;stroke:#07090d;fill:none;stroke-width:2.2}
+  .btn-copy:hover{transform:translateY(-1px)}
+  @media(max-width:520px){.modal-card{padding:20px}.modal-actions{flex-direction:column-reverse}.modal-actions button{justify-content:center}}
+
+  /* toast */
+  .toast{
+    position:fixed;left:50%;bottom:28px;z-index:120;transform:translate(-50%,20px);opacity:0;pointer-events:none;
+    background:var(--surface-2);border:1px solid var(--border-2);color:var(--text);font-size:14px;
+    width:max-content;max-width:calc(100vw - 32px);text-align:center;
+    padding:11px 18px;border-radius:100px;box-shadow:0 12px 32px -10px rgba(0,0,0,.7);transition:.25s;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  @media(prefers-reduced-motion:reduce){.modal,.modal-card,.toast,.ex,.btn-ai{transition:none}}
 
   footer{position:relative;z-index:1;text-align:center;color:var(--faint);font-size:13px;padding:34px;border-top:1px solid var(--border)}
   @media(max-width:560px){.wrap{padding:48px 18px 64px}header{padding:15px 18px}.nav a:not(.cta){display:none}}
@@ -236,7 +328,7 @@
   <div class="logo"><span class="mark">◆</span> APKForge</div>
   <nav class="nav">
     <a href="#">Құжаттама</a>
-    <a href="#">Мысалдар</a>
+    <a href="#examples">Мысалдар</a>
     <a href="#" class="cta">Бастау</a>
   </nav>
 </header>
@@ -244,7 +336,47 @@
 <div class="wrap">
 
   <section class="hero">
-    <span class="badge"><span class="live"></span> Тіркелусіз · толықтай тегін</span>
+    <div class="hero-row">
+      <span class="badge"><span class="live"></span> Тіркелусіз · толықтай тегін</span>
+      <button type="button" class="btn-ai" id="aiOpen" aria-haspopup="dialog">
+        <span class="spark"><svg viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg></span>
+        AI-ға сұрау
+      </button>
+    </div>
+  </section>
+
+  <!-- examples -->
+  <section class="examples" id="examples">
+    <div class="sec-head">
+      <h2>Мысалдар</h2>
+      <p>Дайын жобаны жүктеп, бірден құрастырып көріңіз</p>
+    </div>
+    <div class="ex-grid">
+      <article class="ex">
+        <div class="ex-top"><span class="ex-emoji">🧮</span><span class="ex-tag">Android</span></div>
+        <h3>Калькулятор</h3>
+        <p>Қарапайым HTML/CSS/JS калькулятор — телефонда қосымша ретінде ашылады.</p>
+        <button type="button" class="ex-dl" data-example="calculator"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
+      </article>
+      <article class="ex">
+        <div class="ex-top"><span class="ex-emoji">📔</span><span class="ex-tag">Android</span></div>
+        <h3>Күнделік</h3>
+        <p>Жазбаларды localStorage-та сақтайтын жеке күнделік.</p>
+        <button type="button" class="ex-dl" data-example="diary"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
+      </article>
+      <article class="ex">
+        <div class="ex-top"><span class="ex-emoji">🔢</span><span class="ex-tag py">Python</span></div>
+        <h3>Санауыш</h3>
+        <p>Tkinter терезесі бар батырмалы санауыш — Windows .exe болады.</p>
+        <button type="button" class="ex-dl" data-example="counter"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
+      </article>
+      <article class="ex">
+        <div class="ex-top"><span class="ex-emoji">✅</span><span class="ex-tag py">Python</span></div>
+        <h3>Тапсырмалар тізімі</h3>
+        <p>Тапсырмаларды файлға сақтайтын шағын to-do бағдарламасы.</p>
+        <button type="button" class="ex-dl" data-example="todo"><svg viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4-4M12 16l4-4M4 20h16"/></svg>Мысал ZIP жүктеу</button>
+      </article>
+    </div>
   </section>
 
   <!-- platforms -->
@@ -346,6 +478,61 @@
 </div>
 
 <footer>APKForge — демо интерфейс · build логикасы келесі кезеңде қосылады</footer>
+
+<!-- AI промт модалы -->
+<div class="modal" id="aiModal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+    <div class="modal-head">
+      <span class="spark"><svg viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg></span>
+      <h2 id="aiTitle">AI-ға сұрау</h2>
+      <button type="button" class="modal-x" data-close aria-label="Жабу">×</button>
+    </div>
+    <p class="modal-intro">Қандай ZIP керегін білмейсіз бе? Осы промтты AI-ға (ChatGPT, Claude, Gemini) жіберіңіз — ол дұрыс құрылымдағы файлдарды даярлап береді.</p>
+    <!-- Промт мәтіні: prompt-for-ai.md → «ПРОМТ» бөлімі -->
+    <textarea id="aiPrompt" readonly spellcheck="false" aria-label="AI-ға арналған промт">Сен APKForge сервисіне жүктеуге арналған жоба дайындайтын көмекшісің. APKForge кодты дайын бағдарламаға айналдырады:
+• Android — HTML/CSS/JS сайттан .apk (WebView)
+• Desktop — HTML/CSS/JS сайттан Windows .exe (Electron)
+• Python — .py скрипттен Windows .exe (PyInstaller)
+
+МЕНІҢ ИДЕЯМ: [бағдарламаңызды осында сипаттаңыз]
+ПЛАТФОРМА: [Android / Desktop / Python]
+
+Келесі ережелерді қатаң сақта:
+
+1. Android және Desktop (HTML/CSS/JS):
+   - Түбірде міндетті түрде index.html болсын.
+   - Барлық CSS мен JS файлдары жоба ішінде болсын, салыстырмалы жолмен қосылсын (мыс. css/style.css, js/app.js). Абсолют жол (/style.css) қолданба.
+   - Интернетсіз де жұмыс істесін: CDN, сыртқы шрифт немесе сервер API-ына тәуелді болма. Кітапхана керек болса, оның файлын жоба ішіне сал.
+   - Сервер жағы жоқ (PHP, Node.js, база жоқ). Деректерді localStorage-та сақта.
+   - Мобильді экранға бейімде: &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;.
+   - Қаласаң, түбірге icon.png (512×512) қос.
+
+2. Python:
+   - Негізгі файл main.py деп аталсын және түбірде тұрсын.
+   - Графикалық интерфейс керек болса, tkinter қолдан (қосымша орнатуды қажет етпейді).
+   - Сыртқы пакет керек болса, requirements.txt файлына нұсқасымен жаз (мыс. requests==2.32.3).
+   - Файл атаулары тек латын әріптерімен, сандармен және _ - таңбаларымен болсын.
+   - Бағдарлама Windows-та жұмыс істесін.
+
+3. Жалпы:
+   - Файл атауларында бос орын мен кириллица қолданба.
+   - Жобаның толық мазмұнын бер: әр файлдың жолы және оның толық коды.
+   - Соңында файлдар құрылымын ағаш түрінде көрсет.
+   - ZIP-ті қалай жасауды түсіндір: барлық файлды таңдап → оң жақ батырма → «Сжать в ZIP» (Windows) немесе «Compress» (macOS). ZIP ашылғанда index.html (немесе main.py) бірден көрінуі керек.
+   - ZIP көлемі 100 MB-тан аспасын.
+
+Бағдарлама интерфейсін қазақ тілінде жаса.</textarea>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" data-close>Жабу</button>
+      <button type="button" class="btn-copy" id="aiCopy">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
+        <span>Көшіру</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
   const drop=document.getElementById('drop');
@@ -496,6 +683,62 @@
     logLine('Build басталды, күтіңіз... (бірінші рет бірнеше минут)','c-accent');
     pollStatus(jobId);
   });
+
+  // ---- toast ----
+  const toastEl=document.getElementById('toast');
+  let toastTimer;
+  function toast(msg){
+    toastEl.textContent=msg;toastEl.classList.add('show');
+    clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2400);
+  }
+
+  // ---- AI промт модалы ----
+  const aiModal=document.getElementById('aiModal');
+  const aiOpen=document.getElementById('aiOpen');
+  const aiPrompt=document.getElementById('aiPrompt');
+  const aiCopy=document.getElementById('aiCopy');
+  function openAi(){
+    aiModal.classList.add('open');aiModal.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+    aiPrompt.scrollTop=0;
+    setTimeout(()=>aiCopy.focus(),60); // модал көрінгеннен кейін фокус береміз
+  }
+  function closeAi(){
+    aiModal.classList.remove('open');aiModal.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';aiOpen.focus();
+  }
+  aiOpen.addEventListener('click',openAi);
+  aiModal.addEventListener('click',e=>{if(e.target===aiModal||e.target.closest('[data-close]'))closeAi()});
+  document.addEventListener('keydown',e=>{
+    if(!aiModal.classList.contains('open'))return;
+    if(e.key==='Escape')closeAi();
+    if(e.key==='Tab'){ // фокус модал ішінде қалады
+      const f=[...aiModal.querySelectorAll('button,textarea')];
+      const first=f[0],last=f[f.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+    }
+  });
+  aiCopy.addEventListener('click',async()=>{
+    const label=aiCopy.querySelector('span');
+    try{
+      await navigator.clipboard.writeText(aiPrompt.value);
+    }catch{
+      // clipboard API жоқ (мыс. http) — ескі әдіс
+      aiPrompt.select();
+      if(!document.execCommand('copy'))return toast('Көшіру мүмкін болмады — мәтінді қолмен көшіріңіз');
+    }
+    label.textContent='Көшірілді ✓';toast('Промт көшірілді — енді AI чатына қойыңыз');
+    setTimeout(()=>{label.textContent='Көшіру'},2000);
+  });
+
+  // ---- мысал ZIP-тер (әзірге placeholder) ----
+  const EXAMPLE_ZIPS={}; // мыс. calculator:'/examples/calculator.zip'
+  document.querySelectorAll('.ex-dl').forEach(b=>b.addEventListener('click',()=>{
+    const url=EXAMPLE_ZIPS[b.dataset.example];
+    if(url)window.location.href=url;
+    else toast('Бұл мысал жақында қосылады');
+  }));
 
   const POLL_MS=3000;
   const MAX_POLL_FAILS=10; // қатарынан осынша сәтсіз сұраудан кейін тоқтаймыз
