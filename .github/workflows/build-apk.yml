@@ -1,7 +1,7 @@
 # APKForge — APK-ны GitHub Actions runner-де құрастыру.
-# Railway сервері бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
+# Cloudflare Worker бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
 # сосын run-ды run-name ішіндегі job_id бойынша тауып, күйін бақылайды.
-# Қадам атауларын өзгертсеңіз, server.js ішіндегі STEP_HINTS-ті де жаңартыңыз.
+# Қадам атауларын өзгертсеңіз, worker.js ішіндегі STEP_HINTS-ті де жаңартыңыз.
 
 name: Build APK
 
@@ -33,14 +33,24 @@ on:
         required: true
         default: "#3DD4C8"
         type: string
+      release_id:
+        description: "Worker жасаған draft release ID-і (дайын файл сонда сақталады)"
+        required: true
+        type: string
+      icon_url:
+        description: "Иконка PNG URL-і (ZIP-те icon.png болмаса қолданылады, бос болуы мүмкін)"
+        required: false
+        default: ""
+        type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     # Input-тар скриптке тек env арқылы беріледі (script injection-нан қорғау)
     env:
       JOB_ID: ${{ inputs.job_id }}
@@ -48,14 +58,17 @@ jobs:
       APP_NAME: ${{ inputs.app_name }}
       APP_PACKAGE: ${{ inputs.package }}
       THEME_COLOR: ${{ inputs.color }}
+      ICON_URL: ${{ inputs.icon_url }}
 
     steps:
       - name: Параметрлерді тексеру
         run: |
           echo "::add-mask::$ZIP_URL"
+          [ -z "$ICON_URL" ] || echo "::add-mask::$ICON_URL"
           fail() { echo "::error::$1"; exit 1; }
           [[ "$JOB_ID" =~ ^job_[A-Za-z0-9_]+$ ]]                        || fail "job_id форматы қате"
           [[ "$ZIP_URL" =~ ^https?:// ]]                                 || fail "zip_url http(s) болуы керек"
+          [[ -z "$ICON_URL" || "$ICON_URL" =~ ^https?:// ]]             || fail "icon_url http(s) болуы керек"
           [[ "$APP_PACKAGE" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]  || fail "Package ID форматы қате (мыс. com.mysite.app)"
           [[ "$THEME_COLOR" =~ ^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$ ]]     || fail "Түс форматы қате (мыс. #3DD4C8)"
           [[ -n "${APP_NAME// }" && ${#APP_NAME} -le 50 ]]               || fail "Қосымша атауы бос немесе 50 таңбадан ұзын"
@@ -102,6 +115,13 @@ jobs:
 
           [ -f "$WWW/index.html" ] || { echo "::error::ZIP ішінде index.html табылмады"; exit 1; }
           echo "Файлдар саны: $(find "$WWW" -type f | wc -l)"
+
+          # ZIP-те иконка болмаса — интерфейсте жүктелген PNG-ні icon.png етіп қосамыз
+          if [ ! -f "$WWW/icon.png" ] && [ ! -f "$WWW/favicon.png" ] && [ -n "$ICON_URL" ]; then
+            curl -fsSL --retry 3 --retry-delay 3 --max-time 60 --max-filesize 2097152 \
+              -o "$WWW/icon.png" "$ICON_URL" || { echo "::error::Иконканы жүктеу сәтсіз"; exit 1; }
+            echo "Иконка: жүктелген PNG (icon.png)"
+          fi
 
       - name: Иконканы қою
         run: |
@@ -177,3 +197,34 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+
+  # Дайын файлды Worker жасаған draft release-ке қосу.
+  # Build job-қа жазу рұқсатын бермеу үшін бөлек job-та жасалады.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Нәтижені алу
+        uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: out
+
+      - name: Release-ге жүктеу
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || { echo "::error::release_id қате"; exit 1; }
+          f=$(find out -type f -name '*.apk' | head -1)
+          [ -n "$f" ] || { echo "::error::.apk файлы табылмады"; exit 1; }
+          curl -fsS --retry 3 --retry-delay 5 -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$f" \
+            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=output.apk" > /dev/null
+          echo "Сақталды: $(du -h "$f" | cut -f1)"
