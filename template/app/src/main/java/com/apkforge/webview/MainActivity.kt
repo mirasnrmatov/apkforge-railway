@@ -9,6 +9,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -16,6 +17,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.view.KeyEvent
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -32,6 +34,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowCompat
 import java.io.File
 
 /**
@@ -86,6 +90,7 @@ class MainActivity : ComponentActivity() {
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webview)
+        webView.addJavascriptInterface(SystemBarsBridge(), "ApkForgeBars")
         progress = findViewById(R.id.progress)
 
         webView.settings.apply {
@@ -110,6 +115,8 @@ class MainActivity : ComponentActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progress.visibility = ProgressBar.GONE
+                // Жоғарғы/төменгі жүйелік жолақтар беттің өз түсін алады
+                view?.evaluateJavascript(SYSTEM_BARS_JS, null)
             }
 
             override fun onReceivedError(
@@ -302,5 +309,90 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         webView.saveState(outState)
+    }
+
+    // ---- Жүйелік жолақтар (status bar / navigation bar) ----
+    // Бетте <meta name="theme-color"> болса — сол түс, болмаса body/html фон түсі.
+    // Бет түсін ауыстырса (мыс. dark mode), жолақтар да бірге ауысады.
+
+    private inner class SystemBarsBridge {
+        @JavascriptInterface
+        fun setColor(css: String?) {
+            val color = parseCssColor(css ?: return) ?: return
+            runOnUiThread { applySystemBarColor(color) }
+        }
+    }
+
+    private fun parseCssColor(css: String): Int? {
+        val m = Regex("""rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?""").find(css)
+            ?: return null
+        val (r, g, b) = m.destructured.toList().take(3).map { it.toFloat().toInt().coerceIn(0, 255) }
+        val a = m.groupValues[4]
+        if (a.isNotEmpty()) {
+            val alpha = if (a.endsWith("%")) a.dropLast(1).toFloat() / 100f else a.toFloat()
+            if (alpha < 0.5f) return null               // мөлдір фон — ескермейміз
+        }
+        return Color.rgb(r, g, b)
+    }
+
+    private fun applySystemBarColor(color: Int) {
+        val light = ColorUtils.calculateLuminance(color) > 0.5
+        // Android 5 (API 21–22) жолақтағы иконкаларды қараңғылай алмайды → ашық түсті сәл күңгірттейміз
+        val statusColor =
+            if (light && Build.VERSION.SDK_INT < 23) ColorUtils.blendARGB(color, Color.BLACK, 0.25f) else color
+        window.statusBarColor = statusColor
+        window.navigationBarColor =
+            if (light && Build.VERSION.SDK_INT < 26) ColorUtils.blendARGB(color, Color.BLACK, 0.25f) else color
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = light && Build.VERSION.SDK_INT >= 23
+            isAppearanceLightNavigationBars = light && Build.VERSION.SDK_INT >= 26
+        }
+    }
+
+    private companion object {
+        const val SYSTEM_BARS_JS = """
+(function () {
+  if (window.__apkforgeBars || !window.ApkForgeBars) return;
+  window.__apkforgeBars = true;
+  function norm(c) {
+    var d = document.createElement('i');
+    d.style.display = 'none';
+    d.style.color = c;
+    document.documentElement.appendChild(d);
+    var r = getComputedStyle(d).color;
+    d.remove();
+    return r;
+  }
+  function transparent(c) {
+    return !c || c === 'transparent' || /rgba\([^)]*[,\/]\s*0(\.0+)?\s*\)/.test(c);
+  }
+  function pick() {
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    for (var i = 0; i < metas.length; i++) {
+      var m = metas[i];
+      if (m.content && (!m.media || matchMedia(m.media).matches)) return norm(m.content);
+    }
+    var els = [document.body, document.documentElement];
+    for (var j = 0; j < els.length; j++) {
+      if (!els[j]) continue;
+      var bg = getComputedStyle(els[j]).backgroundColor;
+      if (!transparent(bg)) return bg;
+    }
+    return 'rgb(255, 255, 255)';
+  }
+  var last = '', timer = 0;
+  function send() {
+    var c = pick();
+    if (c !== last) { last = c; window.ApkForgeBars.setColor(c); }
+  }
+  function later() { clearTimeout(timer); timer = setTimeout(send, 120); }
+  send();
+  new MutationObserver(later).observe(document.documentElement, {
+    attributes: true, subtree: true, childList: true,
+    attributeFilter: ['class', 'style', 'content', 'media', 'data-theme']
+  });
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', later); } catch (e) {}
+})();
+"""
     }
 }
