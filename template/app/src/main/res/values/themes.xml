@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Жолақтар бет жүктелгенше ақ, кейін беттің өз түсін алады (MainActivity.kt) -->
     <style name="Theme.App" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/theme_color</item>
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowBackground">@color/white</item>
     </style>
 </resources>
