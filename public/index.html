@@ -686,45 +686,47 @@
     building=true;validate();
     setStatus('running','var(--amber)');
 
-    // деректерді жинау
-    const fd=new FormData();
-    fd.append('platform',platform);
-    fd.append('zip',selectedFile,selectedFile.name);
-    fd.append('appName',appNameInput.value.trim());
-    if(platform==='python'){
-      fd.append('entry',pkgInput.value.trim()); // бос болса сервер main.py-ды өзі табады
-    }else{
-      // android: Package ID, desktop: Electron App ID
-      fd.append('pkg',pkgInput.value.trim());
-      fd.append('color',document.querySelector('.sw.active').dataset.c||'#3DD4C8');
-      // ZIP ішіндегі icon.png/favicon.png басым; жоқ болса сервер осы PNG-ні icon.png етіп қосады
-      if(iconFile)fd.append('icon',iconFile,iconFile.name);
-    }
-
-    // 1) файлды жіберіп, jobId алу
+    // 1) параметрлер → job жасау, 2) файлдарды жүктеу, 3) build-ті бастау
     logLine('Файлдар серверге жүктелуде...','c-muted');
     let jobId;
     try{
-      const r=await fetch('/api/build',{method:'POST',body:fd});
-      const data=await r.json().catch(()=>({ok:false,error:'Сервер жауабы қате (HTTP '+r.status+')'}));
-      if(!data.ok||!data.jobId){
-        logLine('✗ ҚАТЕ: '+data.error,'c-amber');
-        setStatus('error','var(--danger)');
-        building=false;validate();
-        return;
+      const meta={platform,appName:appNameInput.value.trim(),fileName:selectedFile.name};
+      if(platform==='python'){
+        meta.entry=pkgInput.value.trim(); // бос болса runner main.py-ды өзі табады
+      }else{
+        // android: Package ID, desktop: Electron App ID
+        meta.pkg=pkgInput.value.trim();
+        meta.color=document.querySelector('.sw.active').dataset.c||'#3DD4C8';
       }
-      jobId=data.jobId;
+      const job=await api('/api/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(meta)});
+      jobId=job.jobId;
+      const q='?t='+encodeURIComponent(job.token);
+      await api('/api/upload/'+encodeURIComponent(jobId)+'/input'+q,{method:'PUT',body:selectedFile});
+      // ZIP ішіндегі icon.png/favicon.png басым; жоқ болса runner осы PNG-ні icon.png етіп қосады
+      if(platform!=='python'&&iconFile)await api('/api/upload/'+encodeURIComponent(jobId)+'/icon'+q,{method:'PUT',body:iconFile});
+      await api('/api/start/'+encodeURIComponent(jobId)+q,{method:'POST'});
     }catch(e){
-      logLine('✗ Сервермен байланыс үзілді: '+e.message,'c-amber');
+      logLine('✗ '+escapeHtml(e.message),'c-amber');
       setStatus('error','var(--danger)');
       building=false;validate();
       return;
     }
 
-    // 2) әр 3 секунд сайын күйін сұрау
+    // 4) бірнеше секунд сайын күйін сұрау
     logLine('Build басталды, күтіңіз... (бірінші рет бірнеше минут)','c-accent');
     pollStatus(jobId);
   });
+
+  // ---- сервер (Cloudflare Worker) ----
+  const API='https://apkforge.mirasnrmatov.workers.dev'; // ← Worker адресін осында жаз
+  async function api(path,opts){
+    let r;
+    try{ r=await fetch(API+path,opts) }
+    catch(e){ throw new Error('Сервермен байланыс үзілді: '+e.message) }
+    const data=await r.json().catch(()=>({ok:false,error:'Сервер жауабы қате (HTTP '+r.status+')'}));
+    if(!r.ok||data.ok===false)throw new Error('ҚАТЕ: '+(data.error||'HTTP '+r.status));
+    return data;
+  }
 
   // ---- toast ----
   const toastEl=document.getElementById('toast');
@@ -774,7 +776,7 @@
     setTimeout(()=>{label.textContent='Көшіру'},2000);
   });
 
-  const POLL_MS=3000;
+  const POLL_MS=5000;
   const MAX_POLL_FAILS=10; // қатарынан осынша сәтсіз сұраудан кейін тоқтаймыз
   function pollStatus(jobId){
     let shown=0;   // консольге шығарылған лог жолдарының саны
@@ -784,7 +786,7 @@
     const tick=async()=>{
       let data;
       try{
-        const r=await fetch('/api/status/'+encodeURIComponent(jobId),{cache:'no-store'});
+        const r=await fetch(API+'/api/status/'+encodeURIComponent(jobId),{cache:'no-store'});
         data=await r.json();
         fails=0;
       }catch(e){
@@ -799,19 +801,19 @@
 
       // тек жаңа лог жолдарын шығару
       const log=data.log||[];
-      for(;shown<log.length;shown++)logLine(log[shown],'c-muted');
+      for(;shown<log.length;shown++)logLine(escapeHtml(log[shown]),'c-muted');
 
       if(data.status==='done'){
         const fileName=data.fileName||'app-release.apk';
         logLine('BUILD SUCCESSFUL — '+escapeHtml(fileName)+' дайын ✓','c-ok');
         setStatus('done','var(--ok)');
-        downloadUrl=data.download;
+        downloadUrl=API+data.download;
         document.getElementById('resName').textContent=fileName+' · '+data.size;
         result.classList.add('show');
         return finish();
       }
       if(data.status==='error'){
-        logLine('✗ ҚАТЕ: '+(data.error||'белгісіз қате'),'c-amber');
+        logLine('✗ ҚАТЕ: '+escapeHtml(data.error||'белгісіз қате'),'c-amber');
         setStatus('error','var(--danger)');
         return finish();
       }
