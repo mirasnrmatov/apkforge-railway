@@ -1,8 +1,8 @@
 # APKForge — Python скриптінен Windows .exe (PyInstaller --onefile).
-# Railway сервері бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
+# Cloudflare Worker бұл workflow-ды GitHub API арқылы (workflow_dispatch) іске қосады,
 # сосын run-ды run-name ішіндегі job_id бойынша тауып, күйін бақылайды.
-# Жалғыз .py файлды сервер өзі ZIP-ке орап жібереді, сондықтан мұнда әрқашан ZIP келеді.
-# Қадам атауларын өзгертсеңіз, server.js ішіндегі STEP_HINTS-ті де жаңартыңыз.
+# Жалғыз .py файл ZIP-сіз келуі мүмкін — «ZIP ашу» қадамы оны өзі танып алады.
+# Қадам атауларын өзгертсеңіз, worker.js ішіндегі STEP_HINTS-ті де жаңартыңыз.
 
 name: Build EXE (Python)
 
@@ -25,9 +25,13 @@ on:
         default: "MyApp"
         type: string
       entry_point:
-        description: "Негізгі скрипт ZIP ішіндегі жолымен (мыс. main.py)"
+        description: "Негізгі скрипт ZIP ішіндегі жолымен (мыс. main.py); бос болса өзі табылады"
+        required: false
+        default: ""
+        type: string
+      release_id:
+        description: "Worker жасаған draft release ID-і (дайын файл сонда сақталады)"
         required: true
-        default: "main.py"
         type: string
 
 # Пайдаланушы коды (requirements.txt пакеттері) runner-де орындалады —
@@ -60,7 +64,7 @@ jobs:
           [[ "$JOB_ID" =~ ^job_[A-Za-z0-9_]+$ ]]  || fail "job_id форматы қате"
           [[ "$ZIP_URL" =~ ^https?:// ]]          || fail "zip_url http(s) болуы керек"
           # entry point: ZIP ішіндегі салыстырмалы жол, .py-мен аяқталады, '..' жоқ
-          [[ "$ENTRY_POINT" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py$ && "$ENTRY_POINT" != *..* ]] \
+          [[ -z "$ENTRY_POINT" || ( "$ENTRY_POINT" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py$ && "$ENTRY_POINT" != *..* ) ]] \
                                                   || fail "Entry point форматы қате (мыс. main.py немесе app/main.py)"
           # .exe атауы: бос емес, 50 таңбаға дейін, Windows тыйым салған таңбаларсыз
           [[ -n "${APP_NAME// }" && ${#APP_NAME} -le 50 ]] || fail "Қосымша атауы бос немесе 50 таңбадан ұзын"
@@ -81,20 +85,47 @@ jobs:
       - name: ZIP ашу
         run: |
           rm -rf src && mkdir src
-          # Python zipfile '..' және абсолют жолдарды өзі тазалайды
-          python -m zipfile -e site.zip src || { echo "::error::ZIP файл бұзық"; exit 1; }
-          rm -rf src/__MACOSX src/.DS_Store
+          INNER=""
+          if python -c "import sys,zipfile; sys.exit(0 if zipfile.is_zipfile('site.zip') else 1)"; then
+            # Python zipfile '..' және абсолют жолдарды өзі тазалайды
+            python -m zipfile -e site.zip src || { echo "::error::ZIP файл бұзық"; exit 1; }
+            rm -rf src/__MACOSX src/.DS_Store
 
-          # ZIP ішінде бір ғана папка болса — оны жайып жіберу
-          shopt -s dotglob nullglob
-          items=(src/*)
-          if [ ${#items[@]} -eq 1 ] && [ -d "${items[0]}" ]; then
-            mv "${items[0]}" src_inner
-            mv src_inner/* src/
-            rmdir src_inner
+            # ZIP ішінде бір ғана папка болса — оны жайып жіберу
+            shopt -s dotglob nullglob
+            items=(src/*)
+            if [ ${#items[@]} -eq 1 ] && [ -d "${items[0]}" ]; then
+              INNER="$(basename "${items[0]}")/"
+              mv "${items[0]}" src_inner
+              mv src_inner/* src/
+              rmdir src_inner
+            fi
+            shopt -u dotglob
+          else
+            # ZIP емес — жалғыз .py файл келді (Worker entry point-ті оның атымен жібереді)
+            cp site.zip "src/${ENTRY_POINT:-main.py}"
           fi
 
-          [ -f "src/$ENTRY_POINT" ] || { echo "::error::ZIP ішінде $ENTRY_POINT табылмады"; exit 1; }
+          ENTRY="$ENTRY_POINT"
+          # Пайдаланушы ZIP-тегі толық жолды жазса (мыс. proj/main.py), жайылған папканы алып тастаймыз
+          if [ -n "$ENTRY" ] && [ -n "$INNER" ] && [ ! -f "src/$ENTRY" ] && [[ "$ENTRY" == "$INNER"* ]]; then
+            ENTRY="${ENTRY#"$INNER"}"
+          fi
+          # Entry point көрсетілмесе — әдеттегі атаулар, болмаса түбірдегі жалғыз .py
+          if [ -z "$ENTRY" ]; then
+            for n in main.py __main__.py app.py; do [ -f "src/$n" ] && { ENTRY="$n"; break; }; done
+          fi
+          if [ -z "$ENTRY" ]; then
+            shopt -s nullglob
+            root=(src/*.py)
+            [ ${#root[@]} -eq 1 ] && ENTRY="$(basename "${root[0]}")"
+          fi
+          [ -n "$ENTRY" ] || { echo "::error::Entry point көрсетіңіз (мыс. main.py)"; exit 1; }
+          [[ "$ENTRY" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*\.py$ && "$ENTRY" != *..* ]] \
+            || { echo "::error::$ENTRY атауы латын әріптерімен болуы керек"; exit 1; }
+          [ -f "src/$ENTRY" ] || { echo "::error::ZIP ішінде $ENTRY табылмады"; exit 1; }
+          echo "ENTRY=$ENTRY" >> "$GITHUB_ENV"
+          echo "Entry point: $ENTRY"
           echo "Python файлдары:"; (cd src && find . -name '*.py' | head -50)
 
       - name: Тәуелділіктерді орнату (requirements.txt)
@@ -113,7 +144,7 @@ jobs:
         working-directory: src
         run: |
           python -m PyInstaller --onefile --noconfirm --clean \
-            --name "$APP_NAME" "$ENTRY_POINT"
+            --name "$APP_NAME" "$ENTRY"
           ls -l dist
 
       - name: EXE-ні сақтау
@@ -124,3 +155,34 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+
+  # Дайын файлды Worker жасаған draft release-ке қосу.
+  # Build job-қа жазу рұқсатын бермеу үшін бөлек job-та жасалады.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Нәтижені алу
+        uses: actions/download-artifact@v4
+        with:
+          name: exe
+          path: out
+
+      - name: Release-ге жүктеу
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || { echo "::error::release_id қате"; exit 1; }
+          f=$(find out -type f -name '*.exe' | head -1)
+          [ -n "$f" ] || { echo "::error::.exe файлы табылмады"; exit 1; }
+          curl -fsS --retry 3 --retry-delay 5 -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$f" \
+            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=output.exe" > /dev/null
+          echo "Сақталды: $(du -h "$f" | cut -f1)"
